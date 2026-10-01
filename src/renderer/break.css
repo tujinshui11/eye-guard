@@ -1,10 +1,14 @@
+/* 护眼助手 · 休息提醒窗口 —— 视觉精修版
+   真圆角悬浮卡片（配合主进程 transparent 窗口），与设置面板同一设计语言 */
+
 :root {
-  --bg: #14171c;
-  --panel: #1c2026;
-  --text: #e8eaed;
-  --muted: #9aa0a6;
+  --panel: #1a1f27;
+  --panel-hi: #1f2530;
+  --text: #eef1f5;
+  --muted: #8b93a0;
   --accent: #ff9e42;
-  --accent-dim: rgba(255, 158, 66, 0.22);
+  --accent-soft: rgba(255, 158, 66, 0.14);
+  --line: rgba(255, 255, 255, 0.07);
 }
 
 * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -12,7 +16,7 @@
 html, body { height: 100%; }
 
 body {
-  background: var(--bg);
+  background: transparent;
   color: var(--text);
   font: 13px/1.5 "Microsoft YaHei UI", "Segoe UI", sans-serif;
   user-select: none;
@@ -22,40 +26,42 @@ body {
   overflow: hidden;
 }
 
-/* 圆角卡片外观（透明窗口内绘制） */
-body::before {
-  content: "";
-  position: fixed;
-  inset: 0;
-  border-radius: 14px;
-  border: 1px solid #2a2f38;
-  background: linear-gradient(180deg, #1a1e24 0%, #14171c 100%);
-  pointer-events: none;
-}
-
+/* 真圆角卡片（窗口透明后四角为真正圆角） */
 .card {
   position: relative;
-  text-align: center;
-  padding: 28px 24px;
+  width: 100%;
+  height: 100%;
+  border-radius: 16px;
+  border: 1px solid var(--line);
+  background:
+    radial-gradient(120% 90% at 50% -10%, rgba(255, 158, 66, 0.07), transparent 55%),
+    linear-gradient(180deg, var(--panel-hi), var(--panel));
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.04),
+    0 18px 44px rgba(0, 0, 0, 0.5);
   display: flex;
   flex-direction: column;
   align-items: center;
+  justify-content: center;
   gap: 10px;
+  padding: 26px 24px;
+  text-align: center;
 }
 
-.icon { margin-bottom: 2px; }
+.icon { margin-bottom: 2px; opacity: 0.95; }
 
-h1 { font-size: 20px; font-weight: 600; }
+h1 { font-size: 20px; font-weight: 600; letter-spacing: 0.3px; }
 
 .subtitle { color: var(--muted); font-size: 12px; }
 
 .countdown {
-  font-size: 44px;
+  font-size: 46px;
   font-weight: 700;
   color: var(--accent);
   letter-spacing: 2px;
   font-variant-numeric: tabular-nums;
   margin: 6px 0;
+  text-shadow: 0 0 24px rgba(255, 158, 66, 0.35);
 }
 
 .actions {
@@ -68,27 +74,33 @@ button {
   font: inherit;
   font-size: 12px;
   color: var(--text);
-  background: var(--panel);
-  border: 1px solid #2a2f38;
-  border-radius: 8px;
-  padding: 8px 14px;
+  background: rgba(255, 255, 255, 0.045);
+  border: 1px solid var(--line);
+  border-radius: 9px;
+  padding: 8px 15px;
   cursor: pointer;
-  transition: border-color 0.15s, color 0.15s, background 0.15s;
+  transition: border-color 0.15s, color 0.15s, background 0.15s, transform 0.1s;
 }
 
-button:hover { border-color: var(--accent); color: var(--accent); }
+button:hover {
+  border-color: rgba(255, 158, 66, 0.5);
+  color: var(--accent);
+  background: rgba(255, 158, 66, 0.08);
+}
+
+button:active { transform: scale(0.97); }
 
 button.primary {
-  background: var(--accent-dim);
-  border-color: var(--accent);
+  background: var(--accent-soft);
+  border-color: rgba(255, 158, 66, 0.55);
   color: var(--accent);
   font-weight: 600;
 }
 
-button.primary:hover { background: rgba(255, 158, 66, 0.32); }
+button.primary:hover { background: rgba(255, 158, 66, 0.24); }
 
 button.ghost {
-  margin-top: 10px;
+  margin-top: 8px;
   background: transparent;
   border-color: transparent;
   color: var(--muted);
@@ -98,9 +110,9 @@ button.ghost:hover { color: var(--accent); }
 
 .hidden { display: none !important; }
 
-/* 全屏（强制）模式：页面由主进程铺满屏幕，此时放大排版 */
+/* 全屏（强制）模式：页面由主进程铺满屏幕，放大排版 */
 @media (min-width: 900px), (min-height: 700px) {
-  body::before { border-radius: 0; border: none; }
+  .card { border-radius: 0; border: none; }
   h1 { font-size: 34px; }
   .subtitle { font-size: 16px; }
   .countdown { font-size: 88px; }

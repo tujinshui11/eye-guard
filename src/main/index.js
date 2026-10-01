@@ -31,6 +31,7 @@ if (!gotTheLock) {
       width: 420,
       height: 560,
       show: false,
+      backgroundColor: '#12151a',
       resizable: false,
       maximizable: false,
       fullscreenable: false,
@@ -233,6 +234,8 @@ if (!gotTheLock) {
 
     const common = {
       frame: false,
+      transparent: true,
+      backgroundColor: '#00000000',
       skipTaskbar: true,
       alwaysOnTop: true,
       resizable: false,
