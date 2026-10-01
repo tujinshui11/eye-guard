@@ -1,22 +1,11 @@
 {
   "name": "eye-guard",
   "productName": "护眼助手",
-  "version": "0.1.0",
-  "description": "护眼助手：屏幕色温调节 / 亮度调节 / 定时休息提醒（Windows 桌面）",
-  "main": "src/main/index.js",
+  "version": "0.2.0",
+  "description": "护眼助手：屏幕色温调节 / 亮度调节 / 定时休息提醒（Windows 桌面，Rust/Tauri 实现）",
   "private": true,
   "license": "MIT",
   "scripts": {
-    "start": "electron .",
-    "test": "node --test",
-    "selftest": "node scripts/gamma-selftest.js",
-    "package": "node scripts/package.js"
-  },
-  "dependencies": {
-    "koffi": "^3.3.2"
-  },
-  "devDependencies": {
-    "@electron/packager": "^20.3.0",
-    "electron": "44.5.1"
+    "test": "node --test"
   }
 }

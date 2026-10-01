@@ -1,0 +1,24 @@
+[package]
+name = "eye-guard"
+version = "0.2.0"
+description = "护眼助手：屏幕色温/亮度调节 + 定时休息提醒（Windows 桌面）"
+edition = "2021"
+license = "MIT"
+
+[lib]
+name = "eye_guard_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+tauri = { version = "2", features = ["tray-icon"] }
+tauri-plugin-single-instance = "2"
+tauri-plugin-global-shortcut = "2"
+tauri-plugin-autostart = "2"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+windows = { version = "0.62.2", features = ["Win32_Graphics_Gdi", "Win32_Foundation", "Win32_UI_ColorSystem", "Devices_Sensors"] }
+nokhwa = { version = "0.10.11", features = ["input-native", "nokhwa-bindings-windows", "rgb"] }
+chrono = "0.4.45"
