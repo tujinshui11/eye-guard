@@ -281,19 +281,37 @@ pub fn break_action(app: AppHandle, name: String) -> bool {
     let now = now_ms();
     match name.as_str() {
         "beginRest" => {
-            let state = app.state::<SharedState>();
-            let mut st = state.lock().unwrap();
-            st.break_timer.begin_rest(now)
+            let ok = {
+                let state = app.state::<SharedState>();
+                let mut st = state.lock().unwrap();
+                st.break_timer.begin_rest(now)
+            };
+            if ok {
+                crate::break_rt::push_break_update(&app); // 即时切换"休息中"UI
+            }
+            ok
         }
         "postpone" => {
-            let state = app.state::<SharedState>();
-            let mut st = state.lock().unwrap();
-            st.break_timer.postpone(now)
+            let ok = {
+                let state = app.state::<SharedState>();
+                let mut st = state.lock().unwrap();
+                st.break_timer.postpone(now)
+            };
+            if ok {
+                crate::break_rt::hide_break_window(&app); // 即时关窗（v0.2.1：修复关不掉）
+            }
+            ok
         }
         "skip" => {
-            let state = app.state::<SharedState>();
-            let mut st = state.lock().unwrap();
-            st.break_timer.skip(now)
+            let ok = {
+                let state = app.state::<SharedState>();
+                let mut st = state.lock().unwrap();
+                st.break_timer.skip(now)
+            };
+            if ok {
+                crate::break_rt::hide_break_window(&app); // 即时关窗（v0.2.1：修复关不掉）
+            }
+            ok
         }
         "pause1h" => crate::break_rt::pause_breaks(&app, 1),
         "resume" => crate::break_rt::resume_breaks(&app),
