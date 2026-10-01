@@ -158,8 +158,19 @@ pub fn equivalent_kelvin(eff_gain: Rgb, brightness_factor: f64) -> f64 {
     6500.0
 }
 
-/// 安全 LUT：保证每通道最大值 ≥ SAFE_MAX_VALUE，并回报实际生效色温
+/// 安全 LUT（默认边界 SAFE_MAX_VALUE）
 pub fn build_safe_lut(orig: &[u16; 768], temperature: f64, brightness: f64) -> SafeLutResult {
+    build_safe_lut_with_max(orig, temperature, brightness, SAFE_MAX_VALUE)
+}
+
+/// 安全 LUT：保证每通道最大值 ≥ safe_max，并回报实际生效色温
+/// （safe_max 可调——display 夹逼回退时逐级提升边界）
+pub fn build_safe_lut_with_max(
+    orig: &[u16; 768],
+    temperature: f64,
+    brightness: f64,
+    safe_max: u16,
+) -> SafeLutResult {
     let gain = temperature_gain(temperature);
     let brightness_factor = brightness / 100.0;
     let mut eff = Rgb {
@@ -177,7 +188,7 @@ pub fn build_safe_lut(orig: &[u16; 768], temperature: f64, brightness: f64) -> S
         if max_orig[c] == 0.0 {
             continue;
         }
-        let min_total_gain = SAFE_MAX_VALUE as f64 / max_orig[c];
+        let min_total_gain = safe_max as f64 / max_orig[c];
         let cur = match c {
             0 => eff.r,
             1 => eff.g,

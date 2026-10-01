@@ -1,3 +1,5 @@
+pub mod display;
+pub mod gamma;
 pub mod modes;
 pub mod settings;
 pub mod temperature;
