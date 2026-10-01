@@ -1,3 +1,6 @@
+pub mod modes;
+pub mod temperature;
+
 use tauri::Manager;
 
 pub fn run() {
