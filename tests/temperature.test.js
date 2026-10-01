@@ -5,7 +5,7 @@
 const { test } = require('node:test');
 const assert = require('node:assert/strict');
 
-const { rgbAtKelvin, temperatureGain, buildLut, buildSafeLut } = require('../src/main/temperature');
+const { rgbAtKelvin, temperatureGain, buildLut, buildSafeLut, kelvinForGainR, equivalentKelvin } = require('../src/main/temperature');
 
 function approx(actual, expected, tol, msg) {
   assert.ok(
@@ -135,4 +135,59 @@ test('buildSafeLut: 安全组合下 4500K 的读值仍≈期望（钳制不误�
   const { lut } = buildSafeLut(orig, 4500, 100);
   approx(lut[255], 65535, 1, 'R[255]');
   approx(lut[512 + 255], Math.round(65535 * temperatureGain(4500).b), 1, 'B[255]');
+});
+
+// ---- W6-T6.1（RED）：色温域扩展至 10000K（冷区增益 + 统一反解）----
+
+test('temperatureGain: 8000K 冷色（独立推导：r≈0.867, g≈0.904, b=1.0）', () => {
+  const gain = temperatureGain(8000);
+  approx(gain.r, 0.867, 0.01, 'r');
+  approx(gain.g, 0.904, 0.01, 'g');
+  approx(gain.b, 1.0, 0.01, 'b');
+});
+
+test('temperatureGain: 10000K 冷色（独立推导：r≈0.791, g≈0.858, b=1.0）', () => {
+  const gain = temperatureGain(10000);
+  approx(gain.r, 0.791, 0.01, 'r');
+  approx(gain.g, 0.858, 0.01, 'g');
+  approx(gain.b, 1.0, 0.01, 'b');
+});
+
+test('temperatureGain: 冷区红增益随 K 升高单调不增（8000→10000 逐档）', () => {
+  let prev = Infinity;
+  for (let k = 8000; k <= 10000; k += 100) {
+    const r = temperatureGain(k).r;
+    assert.ok(r <= prev + 1e-12, `K=${k} r=${r} prev=${prev}`);
+    prev = r;
+  }
+});
+
+test('equivalentKelvin: 2000..10000 逐档往返（亮度 100，|等效-请求|≤100）', () => {
+  for (let k = 2000; k <= 10000; k += 100) {
+    const gain = temperatureGain(k);
+    const eff = equivalentKelvin({ r: gain.r, g: gain.g, b: gain.b }, 1);
+    approx(eff, k, 100, `K=${k}`);
+  }
+});
+
+test('equivalentKelvin: 亮度 60/80 抽测往返（|等效-请求|≤100）', () => {
+  for (const bf of [0.6, 0.8]) {
+    for (const k of [2000, 3000, 4500, 6500, 8000, 10000]) {
+      const gain = temperatureGain(k);
+      const eff = equivalentKelvin({ r: gain.r * bf, g: gain.g * bf, b: gain.b * bf }, bf);
+      approx(eff, k, 100, `bf=${bf} K=${k}`);
+    }
+  }
+});
+
+test('kelvinForGainR: 边界（1→6500；极小值→10000）', () => {
+  assert.equal(kelvinForGainR(1), 6500);
+  assert.equal(kelvinForGainR(0), 10000);
+  assert.equal(kelvinForGainR(0.5), 10000);
+});
+
+test('kelvinForGainR: 10000K 处红增益≈0.791 反解回 10000', () => {
+  const r = temperatureGain(10000).r;
+  approx(r, 0.791, 0.01, 'r@10000');
+  assert.equal(kelvinForGainR(r), 10000);
 });

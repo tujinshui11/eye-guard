@@ -22,7 +22,7 @@ const SAFE_MAX_VALUE = 32768;
 
 /**
  * 黑体辐射近似：色温 K → RGB 分量（0-255 尺度）
- * @param {number} K 绝对色温（1000-40000，本项目用 2000-6500）
+ * @param {number} K 绝对色温（1000-40000，本项目用 2000-10000）
  */
 function rgbAtKelvin(K) {
   const t = K / 100;
@@ -115,13 +115,52 @@ function kelvinForGainB(targetGain) {
   return Math.round((lo + hi) / 2 / 100) * 100;
 }
 
+/** 冷区上界：10000K 处的红增益（≈0.791），作为 kelvinForGainR 的判据下界 */
+const COLD_R_GAIN_10000 = temperatureGain(10000).r;
+
+/**
+ * 反解：给定红通道增益，求等效色温 K（冷区，gain_r 在 [6500,10000] 上单调不增）
+ * @param {number} targetGain 相对 6500K 的红增益
+ * @returns {number} 100K 取整的等效色温
+ */
+function kelvinForGainR(targetGain) {
+  if (targetGain >= 1) return 6500;
+  if (targetGain <= COLD_R_GAIN_10000) return 10000;
+  let lo = 6500;
+  let hi = 10000;
+  for (let i = 0; i < 50; i++) {
+    const mid = (lo + hi) / 2;
+    if (temperatureGain(mid).r > targetGain) lo = mid;
+    else hi = mid;
+  }
+  return Math.round((lo + hi) / 2 / 100) * 100;
+}
+
+/**
+ * 统一反解：由实际生效增益（effGain）与亮度因子求等效色温 K。
+ * 蓝增益先被压低 → 暖区（kelvinForGainB）；
+ * 否则红增益被压低 → 冷区（kelvinForGainR）；
+ * 否则为中性 6500K。
+ * @param {{r:number,g:number,b:number}} effGain 实际生效增益（相对 6500K）
+ * @param {number} brightnessFactor 亮度因子（brightness/100）
+ * @returns {number} 100K 取整的等效色温
+ */
+function equivalentKelvin(effGain, brightnessFactor) {
+  const bf = brightnessFactor || 1;
+  const kb = Math.min(1, effGain.b / bf);
+  const kr = Math.min(1, effGain.r / bf);
+  if (kb < 1) return kelvinForGainB(kb);
+  if (kr < 1) return kelvinForGainR(kr);
+  return 6500;
+}
+
 /**
  * 安全 LUT：与 buildLut 相同的映射，但保证每通道最大值 ≥ safeMax。
  * 被压过低的通道自动提升总增益——以「牺牲部分暖度/暗度」换取驱动接受，
  * 通过 effectiveTemperature 回报实际生效色温。
  *
  * @param {Uint16Array} orig 原始 ramp（768 项）
- * @param {number} temperature 请求色温（2000-6500）
+ * @param {number} temperature 请求色温（2000-10000）
  * @param {number} brightness 请求亮度（50-100）
  * @param {number} [safeMax] 安全边界（默认本机实测值 32768）
  */
@@ -156,9 +195,7 @@ function buildSafeLut(orig, temperature, brightness, safeMax = SAFE_MAX_VALUE) {
     }
   }
 
-  const effectiveTemperature = kelvinForGainB(
-    Math.min(1, effGain.b / (brightnessFactor || 1))
-  );
+  const effectiveTemperature = equivalentKelvin(effGain, brightnessFactor || 1);
 
   return { lut, clamped, effectiveTemperature, effectiveGains: effGain };
 }
@@ -169,5 +206,7 @@ module.exports = {
   buildLut,
   buildSafeLut,
   kelvinForGainB,
+  kelvinForGainR,
+  equivalentKelvin,
   SAFE_MAX_VALUE
 };
