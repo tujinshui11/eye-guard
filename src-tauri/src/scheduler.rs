@@ -3,7 +3,7 @@
 //! 无 I/O、无副作用、无定时器——仅做「此刻该触发哪条调度」的判定。
 //! 生产侧 tick 与唤醒钩子由调用方（调度壳）驱动，本模块可独立单测。
 
-use chrono::{Local, NaiveDate, TimeZone};
+use chrono::{Local, TimeZone};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
@@ -147,7 +147,7 @@ pub fn mark_fired(
 #[allow(clippy::too_many_arguments)]
 mod tests {
     use super::*;
-    use chrono::Duration;
+    use chrono::{Duration, NaiveDate};
 
     /// 假时钟：基准日 2026-10-01（本地时区）。day_offset 便于构造昨日/明日。
     fn at(day_offset: i64, h: u32, mi: u32, s: u32) -> i64 {
