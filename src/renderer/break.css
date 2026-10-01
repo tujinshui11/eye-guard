@@ -1,14 +1,35 @@
 /* 护眼助手 · 休息提醒窗口 —— 视觉精修版
-   真圆角悬浮卡片（配合主进程 transparent 窗口），与设置面板同一设计语言 */
+   真圆角悬浮卡片（配合主进程 transparent 窗口），与设置面板同一设计语言
+   主题：深海（默认）/ 暖橙（warm）——由 html[data-theme] 切换 */
 
 :root {
+  /* 深海主题（默认） */
+  --bg: #0B0F1A;
+  --panel: #131A2E;
+  --panel-hi: #182242;
+  --text: #E8ECF8;
+  --muted: #7C89AC;
+  --accent: #4D6BFE;
+  --accent-soft: rgba(77,107,254,0.14);
+  --accent-line: rgba(77,107,254,0.5);
+  --accent-wash: rgba(77,107,254,0.07);
+  --accent-glow: rgba(77,107,254,0.35);
+  --line: rgba(255,255,255,0.08);
+}
+
+/* 暖橙主题：覆盖为原暖光配色 */
+html[data-theme="warm"] {
+  --bg: #12151a;
   --panel: #1a1f27;
   --panel-hi: #1f2530;
   --text: #eef1f5;
   --muted: #8b93a0;
   --accent: #ff9e42;
-  --accent-soft: rgba(255, 158, 66, 0.14);
-  --line: rgba(255, 255, 255, 0.07);
+  --accent-soft: rgba(255,158,66,0.14);
+  --accent-line: rgba(255,158,66,0.5);
+  --accent-wash: rgba(255,158,66,0.07);
+  --accent-glow: rgba(255,158,66,0.35);
+  --line: rgba(255,255,255,0.07);
 }
 
 * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -34,7 +55,7 @@ body {
   border-radius: 16px;
   border: 1px solid var(--line);
   background:
-    radial-gradient(120% 90% at 50% -10%, rgba(255, 158, 66, 0.07), transparent 55%),
+    radial-gradient(120% 90% at 50% -10%, var(--accent-wash), transparent 55%),
     linear-gradient(180deg, var(--panel-hi), var(--panel));
   box-shadow:
     inset 0 1px 0 rgba(255, 255, 255, 0.04),
@@ -48,7 +69,7 @@ body {
   text-align: center;
 }
 
-.icon { margin-bottom: 2px; opacity: 0.95; }
+.icon { margin-bottom: 2px; opacity: 0.95; color: var(--accent); }
 
 h1 { font-size: 20px; font-weight: 600; letter-spacing: 0.3px; }
 
@@ -61,7 +82,7 @@ h1 { font-size: 20px; font-weight: 600; letter-spacing: 0.3px; }
   letter-spacing: 2px;
   font-variant-numeric: tabular-nums;
   margin: 6px 0;
-  text-shadow: 0 0 24px rgba(255, 158, 66, 0.35);
+  text-shadow: 0 0 24px var(--accent-glow);
 }
 
 .actions {
@@ -83,21 +104,21 @@ button {
 }
 
 button:hover {
-  border-color: rgba(255, 158, 66, 0.5);
+  border-color: var(--accent-line);
   color: var(--accent);
-  background: rgba(255, 158, 66, 0.08);
+  background: var(--accent-soft);
 }
 
 button:active { transform: scale(0.97); }
 
 button.primary {
   background: var(--accent-soft);
-  border-color: rgba(255, 158, 66, 0.55);
+  border-color: var(--accent-line);
   color: var(--accent);
   font-weight: 600;
 }
 
-button.primary:hover { background: rgba(255, 158, 66, 0.24); }
+button.primary:hover { background: var(--accent-line); }
 
 button.ghost {
   margin-top: 8px;

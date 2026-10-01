@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="zh-CN">
+<html lang="zh-CN" data-theme="deepsea">
 <head>
   <meta charset="UTF-8" />
   <meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self' 'unsafe-inline'" />
@@ -9,41 +9,67 @@
 <body>
   <header>
     <div class="brand">
-      <h1>护眼助手</h1>
-      <span id="version" class="version"></span>
+      <span class="whale" aria-hidden="true">
+        <!-- 抽象鲸尾（自绘）：双弧尾鳍 + 气泡 -->
+        <svg width="38" height="38" viewBox="0 0 40 40" fill="none">
+          <defs>
+            <linearGradient id="whaleGrad" x1="6" y1="8" x2="34" y2="32" gradientUnits="userSpaceOnUse">
+              <stop offset="0" stop-color="#4D6BFE" />
+              <stop offset="1" stop-color="#38BDF8" />
+            </linearGradient>
+          </defs>
+          <path d="M20 31 C17.5 25 11 21 6.5 12.5 C14 14 19 18.5 20 24.5 C21 18.5 26 14 33.5 12.5 C29 21 22.5 25 20 31 Z"
+                fill="url(#whaleGrad)" opacity="0.95" />
+          <circle cx="31.5" cy="30" r="2" fill="#38BDF8" opacity="0.65" />
+          <circle cx="35" cy="25.5" r="1.2" fill="#38BDF8" opacity="0.45" />
+        </svg>
+      </span>
+      <div class="brand-text">
+        <h1>护眼助手</h1>
+        <span id="version" class="version"></span>
+      </div>
     </div>
     <span id="status" class="status">已启用</span>
   </header>
 
   <main>
-    <section>
-      <h2>色温</h2>
-      <input type="range" id="temperature" min="2000" max="6500" step="100" value="6500" />
-      <div class="row">
-        <span class="value"><span id="temperature-value">6500</span><span class="unit">K</span></span>
-        <span class="hint">6500K = 原色</span>
+    <section class="card">
+      <div class="card-head">
+        <h2>场景模式</h2>
+        <span class="hint">点击应用 · 色温 + 亮度组合</span>
       </div>
-      <div class="presets">
-        <button data-k="5500">办公 5500K</button>
-        <button data-k="4500">傍晚 4500K</button>
-        <button data-k="3400">夜晚 3400K</button>
-        <button data-k="2700">深夜 2700K</button>
-        <button data-k="6500">关闭</button>
+      <div id="mode-grid" class="mode-grid"></div>
+    </section>
+
+    <section class="card">
+      <div class="card-head">
+        <h2>精细调节</h2>
+        <span class="value"><span id="temperature-value">6500</span><span class="unit">K</span></span>
+      </div>
+      <input type="range" id="temperature" min="2000" max="10000" step="100" value="6500" />
+      <div class="ticks">
+        <span>2000K · 暖</span>
+        <span>6500K · 原色</span>
+        <span>10000K · 冷</span>
       </div>
       <p id="temp-note" class="note hidden"></p>
-    </section>
 
-    <section>
-      <h2>亮度</h2>
-      <input type="range" id="brightness" min="50" max="100" step="1" value="100" />
-      <div class="row">
+      <div class="card-head sub">
+        <h2>亮度</h2>
         <span class="value"><span id="brightness-value">100</span><span class="unit">%</span></span>
-        <span class="hint">匹配环境光 · 最低 50%</span>
+      </div>
+      <input type="range" id="brightness" min="50" max="100" step="1" value="100" />
+      <div class="ticks">
+        <span>50% · 暗</span>
+        <span>100% · 原始</span>
       </div>
     </section>
 
-    <section>
-      <h2>休息提醒</h2>
+    <section class="card">
+      <div class="card-head">
+        <h2>休息提醒</h2>
+        <span class="hint">20-20-20 已内置</span>
+      </div>
       <label class="check-row">
         <input type="checkbox" id="break-enabled" checked />
         <span>启用定时休息提醒</span>
@@ -70,11 +96,22 @@
         <button id="preset-2020">20-20-20 规则</button>
         <button id="break-pause">暂停提醒 1 小时</button>
       </div>
+      <p id="break-status" class="note muted-line"></p>
       <p id="break-note" class="note hidden"></p>
     </section>
 
-    <section>
-      <h2>通用</h2>
+    <section class="card">
+      <div class="card-head">
+        <h2>通用</h2>
+      </div>
+      <div class="field-row">
+        <label class="field">界面主题
+        </label>
+        <div class="theme-switch" role="group" aria-label="界面主题">
+          <button class="theme-btn active" data-theme="deepsea">深海</button>
+          <button class="theme-btn" data-theme="warm">暖橙</button>
+        </div>
+      </div>
       <label class="check-row">
         <input type="checkbox" id="auto-launch" />
         <span>开机自启动（启动后驻留托盘）</span>
