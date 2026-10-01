@@ -1,0 +1,29 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self' 'unsafe-inline'" />
+  <title>休息提醒</title>
+  <link rel="stylesheet" href="break.css" />
+</head>
+<body data-mode="alerting">
+  <div class="card">
+    <div class="icon" aria-hidden="true">
+      <svg width="56" height="56" viewBox="0 0 56 56" fill="none">
+        <circle cx="28" cy="28" r="24" stroke="#ff9e42" stroke-width="3.5" opacity="0.9"/>
+        <circle cx="28" cy="28" r="9" fill="#ff9e42"/>
+      </svg>
+    </div>
+    <h1 id="title">该休息一下了</h1>
+    <p id="subtitle" class="subtitle">眺望 20 英尺（约 6 米）外，放松眼睛</p>
+    <div id="countdown" class="countdown hidden">05:00</div>
+    <div id="actions" class="actions">
+      <button id="btn-rest" class="primary">开始休息</button>
+      <button id="btn-postpone">推迟 5 分钟</button>
+      <button id="btn-skip">跳过</button>
+    </div>
+    <button id="btn-skip-rest" class="ghost hidden">跳过本次休息</button>
+  </div>
+  <script src="break.js"></script>
+</body>
+</html>

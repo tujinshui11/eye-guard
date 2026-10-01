@@ -12,5 +12,11 @@ contextBridge.exposeInMainWorld('eyeGuard', {
   restoreColor: () => ipcRenderer.invoke('display:restore'),
   // 设置
   getSettings: () => ipcRenderer.invoke('settings:get'),
-  updateSettings: (patch) => ipcRenderer.invoke('settings:set', patch)
+  updateSettings: (patch) => ipcRenderer.invoke('settings:set', patch),
+  // 休息提醒
+  getBreakState: () => ipcRenderer.invoke('break:get-state'),
+  breakAction: (name) => ipcRenderer.invoke('break:action', name),
+  onBreakUpdate: (cb) => {
+    ipcRenderer.on('break:update', (e, state) => cb(state));
+  }
 });

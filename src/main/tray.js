@@ -70,6 +70,14 @@ function createTray({ onToggleWindow, onQuit, actions }) {
           rebuild();
         }
       },
+      {
+        label: state.breakPaused ? '恢复提醒' : '暂停提醒 1 小时',
+        click: () => {
+          if (state.breakPaused) actions.resumeBreaks();
+          else actions.pauseBreaks(1);
+          rebuild();
+        }
+      },
       { type: 'separator' },
       { label: '设置…', click: onToggleWindow },
       { label: '退出', click: onQuit }

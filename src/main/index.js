@@ -6,6 +6,7 @@ const { DisplayController } = require('./display');
 const { SettingsStore } = require('./settings');
 const { BrightnessOverlay } = require('./overlay');
 const { registerHotkeys, unregisterAll } = require('./hotkeys');
+const { BreakTimer } = require('./breakTimer');
 
 // ---- 单实例锁：护眼工具必须常驻唯一实例 ----
 const gotTheLock = app.requestSingleInstanceLock();
@@ -18,6 +19,9 @@ if (!gotTheLock) {
   let display = null;
   let overlay = null;
   let settings = null;
+  let breakTimer = null;
+  let breakWindow = null;
+  let breakTickTimer = null;
   let quitting = false;
 
   // ==== 窗口 ====
@@ -75,7 +79,7 @@ if (!gotTheLock) {
     app.quit();
   }
 
-  // ==== 业务 ====
+  // ==== 设置 / 显示 ====
 
   function initSettings() {
     settings = new SettingsStore({ dataDir: app.getPath('userData') });
@@ -112,7 +116,6 @@ if (!gotTheLock) {
     return res;
   }
 
-  /** 轻量状态：热键/托盘使用 */
   function nudgeTemperature(delta) {
     const cur = display ? display.current.temperature : 6500;
     const next = Math.min(6500, Math.max(2000, cur + delta));
@@ -144,7 +147,154 @@ if (!gotTheLock) {
     return setTemperature(t, { persist: true, preset: settings ? settings.get().preset : 'custom' });
   }
 
-  /** 供托盘使用的聚合操作 */
+  // ==== 休息提醒 ====
+
+  function initBreakSystem() {
+    const b = settings.get().breaks;
+    breakTimer = new BreakTimer({
+      onEvent: (e) => handleBreakEvent(e)
+    });
+    breakTimer.configure({ workSeconds: b.workSeconds, breakSeconds: b.breakSeconds });
+
+    if (b.enabled) {
+      breakTimer.start();
+      const pausedUntil = settings.get().pausedUntil;
+      if (pausedUntil && pausedUntil > Date.now()) {
+        breakTimer.pause(pausedUntil);
+        console.log('[break] 已按上次暂停状态恢复（至 ' + new Date(pausedUntil).toLocaleTimeString() + '）');
+      }
+    }
+
+    breakTickTimer = setInterval(() => {
+      if (!breakTimer) return;
+      breakTimer.tick();
+      const st = breakTimer.getState();
+      if (
+        breakWindow &&
+        !breakWindow.isDestroyed() &&
+        (st.state === 'alerting' || st.state === 'resting')
+      ) {
+        breakWindow.webContents.send('break:update', st);
+      }
+    }, 1000);
+
+    console.log(
+      '[break] system initialized, enabled=' + b.enabled +
+      ', work=' + b.workSeconds + 's, break=' + b.breakSeconds + 's, style=' + b.style
+    );
+  }
+
+  function handleBreakEvent(e) {
+    console.log('[break] event: ' + e.type);
+    switch (e.type) {
+      case 'alerting':
+        showBreakWindow();
+        break;
+      case 'resting':
+        pushBreakUpdate();
+        break;
+      case 'paused':
+      case 'working':
+      case 'skipped':
+        hideBreakWindow();
+        break;
+      default:
+        break;
+    }
+  }
+
+  function showBreakWindow() {
+    if (breakWindow && !breakWindow.isDestroyed()) {
+      pushBreakUpdate();
+      return;
+    }
+    const style = (settings && settings.get().breaks.style) || 'gentle';
+
+    const common = {
+      frame: false,
+      skipTaskbar: true,
+      alwaysOnTop: true,
+      resizable: false,
+      minimizable: false,
+      maximizable: false,
+      fullscreenable: false,
+      show: false,
+      webPreferences: {
+        preload: path.join(__dirname, '..', 'preload.js'),
+        contextIsolation: true,
+        nodeIntegration: false,
+        sandbox: true
+      }
+    };
+
+    if (style === 'fullscreen') {
+      const d = screen.getPrimaryDisplay();
+      breakWindow = new BrowserWindow({
+        ...common,
+        x: d.bounds.x,
+        y: d.bounds.y,
+        width: d.bounds.width,
+        height: d.bounds.height
+      });
+      breakWindow.setAlwaysOnTop(true, 'screen-saver');
+      breakWindow.loadFile(path.join(__dirname, '..', 'renderer', 'break.html'));
+      breakWindow.once('ready-to-show', () => {
+        breakWindow.show();
+        console.log('[break] 全屏提醒窗口已显示');
+      });
+    } else {
+      breakWindow = new BrowserWindow({
+        ...common,
+        width: 420,
+        height: 320,
+        center: true
+      });
+      breakWindow.setAlwaysOnTop(true, 'screen-saver');
+      breakWindow.loadFile(path.join(__dirname, '..', 'renderer', 'break.html'));
+      breakWindow.once('ready-to-show', () => {
+        breakWindow.showInactive(); // H4：不抢键盘焦点
+        console.log('[break] 温和提醒窗口已显示（showInactive）');
+      });
+    }
+
+    breakWindow.on('closed', () => {
+      breakWindow = null;
+    });
+    breakWindow.webContents.on('did-finish-load', () => pushBreakUpdate());
+  }
+
+  function pushBreakUpdate() {
+    if (!breakWindow || breakWindow.isDestroyed() || !breakTimer) return;
+    breakWindow.webContents.send('break:update', breakTimer.getState());
+  }
+
+  function hideBreakWindow() {
+    if (breakWindow && !breakWindow.isDestroyed()) {
+      breakWindow.close();
+    }
+    breakWindow = null;
+  }
+
+  function pauseBreaks(hours = 1) {
+    if (!breakTimer) return false;
+    const until = Date.now() + hours * 3600 * 1000;
+    if (settings) settings.save({ pausedUntil: until });
+    const ok = breakTimer.pause(until);
+    hideBreakWindow();
+    console.log('[break] 暂停提醒 ' + hours + ' 小时（至 ' + new Date(until).toLocaleTimeString() + '）');
+    return ok;
+  }
+
+  function resumeBreaks() {
+    if (!breakTimer) return false;
+    if (settings) settings.save({ pausedUntil: null });
+    const ok = breakTimer.resume();
+    console.log('[break] 已恢复提醒（state=' + breakTimer.getState().state + '）');
+    return ok;
+  }
+
+  // ==== 托盘聚合操作 ====
+
   const trayActions = {
     applyPreset: (k, name) => {
       if (settings) settings.save({ enabled: true });
@@ -155,8 +305,11 @@ if (!gotTheLock) {
     reenableColor,
     getState: () => ({
       temperature: display ? display.current.temperature : 6500,
-      enabled: settings ? settings.get().enabled : true
-    })
+      enabled: settings ? settings.get().enabled : true,
+      breakPaused: breakTimer ? breakTimer.getState().state === 'paused' : false
+    }),
+    pauseBreaks,
+    resumeBreaks
   };
 
   function applyStartupState() {
@@ -192,12 +345,45 @@ if (!gotTheLock) {
 
   ipcMain.handle('settings:set', (e, patch) => {
     if (!settings) return null;
-    return settings.save(isPlainPatch(patch));
+    const clean = patch && typeof patch === 'object' && !Array.isArray(patch) ? patch : {};
+    const next = settings.save(clean);
+
+    // 联动：breaks 配置变更 → 重配置状态机
+    if (clean.breaks && breakTimer) {
+      breakTimer.configure({
+        workSeconds: next.breaks.workSeconds,
+        breakSeconds: next.breaks.breakSeconds
+      });
+      if (next.breaks.enabled) {
+        if (breakTimer.getState().state === 'idle') breakTimer.start();
+      } else {
+        breakTimer.stop();
+        hideBreakWindow();
+      }
+      console.log('[break] 配置已更新并联动');
+    }
+    return next;
   });
 
-  function isPlainPatch(patch) {
-    return patch && typeof patch === 'object' && !Array.isArray(patch) ? patch : {};
-  }
+  ipcMain.handle('break:get-state', () => (breakTimer ? breakTimer.getState() : null));
+
+  ipcMain.handle('break:action', (e, name) => {
+    if (!breakTimer) return false;
+    switch (name) {
+      case 'beginRest':
+        return breakTimer.beginRest();
+      case 'postpone':
+        return breakTimer.postpone();
+      case 'skip':
+        return breakTimer.skip();
+      case 'pause1h':
+        return pauseBreaks(1);
+      case 'resume':
+        return resumeBreaks();
+      default:
+        return false;
+    }
+  });
 
   // ==== 启动 ====
 
@@ -217,6 +403,7 @@ if (!gotTheLock) {
     console.log('[boot] tray created');
 
     applyStartupState();
+    initBreakSystem();
 
     // 全局热键：Control+Alt+↑/↓ 色温 ±200K
     const hk = registerHotkeys(
@@ -249,6 +436,11 @@ if (!gotTheLock) {
   app.on('before-quit', () => {
     quitting = true;
     unregisterAll();
+    if (breakTickTimer) {
+      clearInterval(breakTickTimer);
+      breakTickTimer = null;
+    }
+    hideBreakWindow();
     if (overlay) overlay.dispose();
     // 退出前恢复屏幕原始色彩（dirty 兜底见 display.js）
     if (display && display.originalRamp) {

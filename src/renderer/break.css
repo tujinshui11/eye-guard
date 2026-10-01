@@ -1,0 +1,108 @@
+:root {
+  --bg: #14171c;
+  --panel: #1c2026;
+  --text: #e8eaed;
+  --muted: #9aa0a6;
+  --accent: #ff9e42;
+  --accent-dim: rgba(255, 158, 66, 0.22);
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+html, body { height: 100%; }
+
+body {
+  background: var(--bg);
+  color: var(--text);
+  font: 13px/1.5 "Microsoft YaHei UI", "Segoe UI", sans-serif;
+  user-select: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+}
+
+/* 圆角卡片外观（透明窗口内绘制） */
+body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  border-radius: 14px;
+  border: 1px solid #2a2f38;
+  background: linear-gradient(180deg, #1a1e24 0%, #14171c 100%);
+  pointer-events: none;
+}
+
+.card {
+  position: relative;
+  text-align: center;
+  padding: 28px 24px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+}
+
+.icon { margin-bottom: 2px; }
+
+h1 { font-size: 20px; font-weight: 600; }
+
+.subtitle { color: var(--muted); font-size: 12px; }
+
+.countdown {
+  font-size: 44px;
+  font-weight: 700;
+  color: var(--accent);
+  letter-spacing: 2px;
+  font-variant-numeric: tabular-nums;
+  margin: 6px 0;
+}
+
+.actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+button {
+  font: inherit;
+  font-size: 12px;
+  color: var(--text);
+  background: var(--panel);
+  border: 1px solid #2a2f38;
+  border-radius: 8px;
+  padding: 8px 14px;
+  cursor: pointer;
+  transition: border-color 0.15s, color 0.15s, background 0.15s;
+}
+
+button:hover { border-color: var(--accent); color: var(--accent); }
+
+button.primary {
+  background: var(--accent-dim);
+  border-color: var(--accent);
+  color: var(--accent);
+  font-weight: 600;
+}
+
+button.primary:hover { background: rgba(255, 158, 66, 0.32); }
+
+button.ghost {
+  margin-top: 10px;
+  background: transparent;
+  border-color: transparent;
+  color: var(--muted);
+}
+
+button.ghost:hover { color: var(--accent); }
+
+.hidden { display: none !important; }
+
+/* 全屏（强制）模式：页面由主进程铺满屏幕，此时放大排版 */
+@media (min-width: 900px), (min-height: 700px) {
+  body::before { border-radius: 0; border: none; }
+  h1 { font-size: 34px; }
+  .subtitle { font-size: 16px; }
+  .countdown { font-size: 88px; }
+  button { font-size: 14px; padding: 12px 22px; }
+}

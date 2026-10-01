@@ -1,6 +1,6 @@
 'use strict';
 
-// 设置面板交互（W3：色温 + 亮度接线；W4+ 扩展提醒/通用）
+// 设置面板交互（W4：色温 + 亮度 + 休息提醒）
 
 const tempSlider = document.getElementById('temperature');
 const tempValue = document.getElementById('temperature-value');
@@ -9,7 +9,14 @@ const brightSlider = document.getElementById('brightness');
 const brightValue = document.getElementById('brightness-value');
 const versionEl = document.getElementById('version');
 
-// ---- 通用节流 ----
+const breakEnabled = document.getElementById('break-enabled');
+const breakWork = document.getElementById('break-work');
+const breakRest = document.getElementById('break-rest');
+const breakStyle = document.getElementById('break-style');
+const breakNote = document.getElementById('break-note');
+
+// ---- 通用 ----
+
 function throttled(fn, ms) {
   let timer = null;
   let pending = null;
@@ -37,9 +44,9 @@ function throttled(fn, ms) {
   };
 }
 
-function showNote(text) {
-  tempNote.textContent = text;
-  tempNote.classList.toggle('hidden', !text);
+function showNote(el, text) {
+  el.textContent = text;
+  el.classList.toggle('hidden', !text);
 }
 
 // ---- 色温 ----
@@ -49,16 +56,12 @@ async function applyTemperature(k) {
     const res = await window.eyeGuard.setTemperature(k);
     if (res && res.ok) {
       tempValue.textContent = res.effectiveTemperature;
-      if (res.clamped) {
-        showNote('受显卡限制，本机实际最低约 ' + res.effectiveTemperature + 'K');
-      } else {
-        showNote('');
-      }
+      showNote(tempNote, res.clamped ? '受显卡限制，本机实际最低约 ' + res.effectiveTemperature + 'K' : '');
     } else {
-      showNote((res && res.error) || '应用失败');
+      showNote(tempNote, (res && res.error) || '应用失败');
     }
   } catch (err) {
-    showNote('IPC 调用失败：' + err.message);
+    showNote(tempNote, 'IPC 调用失败：' + err.message);
   }
 }
 
@@ -68,12 +71,9 @@ tempSlider.addEventListener('input', () => {
   tempValue.textContent = tempSlider.value;
   tempThrottle.input(Number(tempSlider.value));
 });
+tempSlider.addEventListener('change', () => tempThrottle.commit(Number(tempSlider.value)));
 
-tempSlider.addEventListener('change', () => {
-  tempThrottle.commit(Number(tempSlider.value));
-});
-
-document.querySelectorAll('.presets button').forEach((btn) => {
+document.querySelectorAll('.presets button[data-k]').forEach((btn) => {
   btn.addEventListener('click', () => {
     const k = Number(btn.dataset.k);
     tempSlider.value = String(k);
@@ -92,9 +92,42 @@ brightSlider.addEventListener('input', () => {
   brightValue.textContent = brightSlider.value;
   brightThrottle.input(Number(brightSlider.value));
 });
+brightSlider.addEventListener('change', () => brightThrottle.commit(Number(brightSlider.value)));
 
-brightSlider.addEventListener('change', () => {
-  brightThrottle.commit(Number(brightSlider.value));
+// ---- 休息提醒 ----
+
+function collectBreaks() {
+  return {
+    enabled: breakEnabled.checked,
+    workSeconds: Math.max(60, Math.round(Number(breakWork.value || 40) * 60)),
+    breakSeconds: Math.max(5, Math.round(Number(breakRest.value || 300))),
+    style: breakStyle.value
+  };
+}
+
+function pushBreaks() {
+  window.eyeGuard.updateSettings({ breaks: collectBreaks() }).catch(() => {});
+}
+
+breakEnabled.addEventListener('change', pushBreaks);
+breakWork.addEventListener('change', pushBreaks);
+breakRest.addEventListener('change', pushBreaks);
+breakStyle.addEventListener('change', pushBreaks);
+
+document.getElementById('preset-2020').addEventListener('click', () => {
+  breakWork.value = '20';
+  breakRest.value = '20';
+  pushBreaks();
+  showNote(breakNote, '已应用 20-20-20 规则：每 20 分钟，看 20 英尺外 20 秒');
+});
+
+document.getElementById('break-pause').addEventListener('click', async () => {
+  try {
+    await window.eyeGuard.breakAction('pause1h');
+    showNote(breakNote, '已暂停提醒 1 小时（托盘菜单可恢复）');
+  } catch (err) {
+    showNote(breakNote, '暂停失败：' + err.message);
+  }
 });
 
 // ---- 启动状态 ----
@@ -106,6 +139,7 @@ window.addEventListener('DOMContentLoaded', async () => {
   } catch (err) {
     console.warn('版本读取失败:', err && err.message);
   }
+
   try {
     const state = await window.eyeGuard.getDisplayState();
     if (state) {
@@ -120,5 +154,17 @@ window.addEventListener('DOMContentLoaded', async () => {
     }
   } catch (err) {
     console.warn('显示状态读取失败:', err && err.message);
+  }
+
+  try {
+    const settings = await window.eyeGuard.getSettings();
+    if (settings && settings.breaks) {
+      breakEnabled.checked = !!settings.breaks.enabled;
+      breakWork.value = String(Math.round(settings.breaks.workSeconds / 60));
+      breakRest.value = String(settings.breaks.breakSeconds);
+      breakStyle.value = settings.breaks.style || 'gentle';
+    }
+  } catch (err) {
+    console.warn('设置读取失败:', err && err.message);
   }
 });

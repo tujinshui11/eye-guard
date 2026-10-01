@@ -43,7 +43,33 @@
 
     <section>
       <h2>休息提醒</h2>
-      <p class="placeholder">待接入（工作/休息周期与提醒窗口）</p>
+      <label class="check-row">
+        <input type="checkbox" id="break-enabled" checked />
+        <span>启用定时休息提醒</span>
+      </label>
+      <div class="field-row">
+        <label class="field">工作
+          <input type="number" id="break-work" min="1" max="240" step="1" value="40" />
+          分钟
+        </label>
+        <label class="field">休息
+          <input type="number" id="break-rest" min="5" max="3600" step="1" value="300" />
+          秒
+        </label>
+      </div>
+      <div class="field-row">
+        <label class="field">提醒样式
+          <select id="break-style">
+            <option value="gentle">温和卡片（默认）</option>
+            <option value="fullscreen">全屏遮罩（强制）</option>
+          </select>
+        </label>
+      </div>
+      <div class="presets">
+        <button id="preset-2020">20-20-20 规则</button>
+        <button id="break-pause">暂停提醒 1 小时</button>
+      </div>
+      <p id="break-note" class="note hidden"></p>
     </section>
 
     <section>
