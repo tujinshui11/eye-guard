@@ -43,11 +43,11 @@ pub struct ApplyOutcome {
 }
 
 /// 显示控制器
-pub struct DisplayController {
+pub struct DisplayController<G: GammaIo = RealGammaIo> {
     #[allow(dead_code)]
     data_dir: PathBuf,
     backup_path: PathBuf,
-    gamma: Box<dyn GammaIo>,
+    gamma: G,
     original_ramp: Option<[u16; 768]>,
     last_good_lut: Option<[u16; 768]>,
     dirty: bool,
@@ -57,8 +57,8 @@ pub struct DisplayController {
     pub enabled: bool,
 }
 
-impl DisplayController {
-    pub fn new(data_dir: &Path, gamma_io: Box<dyn GammaIo>) -> Self {
+impl<G: GammaIo> DisplayController<G> {
+    pub fn new(data_dir: &Path, gamma_io: G) -> Self {
         Self {
             data_dir: data_dir.to_path_buf(),
             backup_path: data_dir.join("gamma-backup.json"),
@@ -297,10 +297,10 @@ mod tests {
     fn make_dc(
         tag: &str,
         initial: [u16; 768],
-    ) -> (DisplayController, PathBuf, Rc<RefCell<FakeState>>) {
+    ) -> (DisplayController<FakeGamma>, PathBuf, Rc<RefCell<FakeState>>) {
         let dir = tmp_dir(tag);
         let (fake, state) = FakeGamma::new(initial);
-        (DisplayController::new(&dir, Box::new(fake)), dir, state)
+        (DisplayController::new(&dir, fake), dir, state)
     }
 
     fn read_backup(dir: &Path) -> Value {
@@ -333,7 +333,7 @@ mod tests {
         .unwrap();
 
         let (fake, state) = FakeGamma::new(biased);
-        let mut dc = DisplayController::new(&dir, Box::new(fake));
+        let mut dc = DisplayController::new(&dir, fake);
         let healed = dc.init().unwrap();
 
         assert!(healed);
@@ -351,7 +351,7 @@ mod tests {
         )
         .unwrap();
         let (fake, state) = FakeGamma::new(std_ramp());
-        let mut dc = DisplayController::new(&dir, Box::new(fake));
+        let mut dc = DisplayController::new(&dir, fake);
         dc.init().unwrap();
         assert!(
             state.borrow().writes.is_empty(),
