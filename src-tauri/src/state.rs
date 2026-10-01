@@ -1,0 +1,77 @@
+//! 全局应用状态（settings + display）——对照 Electron 版主进程的模块级单例
+
+use crate::display::{DisplayController, RealGammaIo};
+use crate::settings::SettingsStore;
+use serde_json::{json, Value};
+use std::path::PathBuf;
+use std::sync::Mutex;
+
+pub struct AppState {
+    pub settings: SettingsStore,
+    pub display: DisplayController,
+}
+
+pub type SharedState = Mutex<AppState>;
+
+/// 数据目录：沿用 Electron 版 userData 路径（%APPDATA%\护眼助手\）——设置与备份无缝继承
+pub fn data_dir() -> PathBuf {
+    let base = std::env::var_os("APPDATA")
+        .map(PathBuf::from)
+        .unwrap_or_else(|| PathBuf::from("."));
+    base.join("护眼助手")
+}
+
+/// 启动引导：加载设置 → 初始化 display（dirty 自愈）→ 应用启动状态（silent，不落盘）
+pub fn bootstrap() -> AppState {
+    let dir = data_dir();
+    let mut settings = SettingsStore::new(&dir);
+    settings.load();
+    eprintln!(
+        "[boot] settings loaded from {} (settings.json exists={})",
+        dir.display(),
+        dir.join("settings.json").exists()
+    );
+
+    let mut display = DisplayController::new(&dir, RealGammaIo);
+    match display.init() {
+        Ok(healed) => eprintln!("[boot] display initialized, healed={healed}"),
+        Err(e) => eprintln!("[boot] display init failed: {e}"),
+    }
+    display.enabled = settings.get()["enabled"].as_bool().unwrap_or(true);
+
+    // applyStartupState（对照 index.js:689）：模式命中走 applyMode 语义，silent 恢复
+    if display.enabled {
+        let mode_id = settings
+            .get()
+            .get("modeId")
+            .and_then(|v| v.as_str())
+            .unwrap_or("")
+            .to_string();
+        if let Some(mode) = crate::modes::get_mode(&mode_id) {
+            let outcome = display.apply(mode.kelvin as f64);
+            eprintln!(
+                "[boot] 恢复模式 {}（{}）→ 生效 {}K / {}%",
+                mode_id, mode.name, outcome.effective_temperature, mode.brightness
+            );
+        } else if let Some(t) = settings.get().get("temperature").and_then(|v| v.as_f64()) {
+            if (t - 6500.0).abs() > f64::EPSILON {
+                let outcome = display.apply(t);
+                eprintln!("[boot] 恢复上次色温: {}K", outcome.effective_temperature);
+            }
+        }
+    }
+
+    AppState { settings, display }
+}
+
+/// display:changed 的广播载荷（对照 broadcastDisplayChanged）
+/// 注意：JS 版 brightness 在无 overlay 时 fallback 100——W2 尚无 overlay（W4 接入后改读实际值）
+pub fn display_payload(state: &AppState) -> Value {
+    let s = state.settings.get();
+    json!({
+        "temperature": state.display.current_temperature,
+        "brightness": 100,
+        "modeId": s.get("modeId").cloned().unwrap_or(json!("natural")),
+        "enabled": s.get("enabled").cloned().unwrap_or(json!(true))
+    })
+}

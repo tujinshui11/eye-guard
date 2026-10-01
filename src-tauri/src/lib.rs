@@ -1,7 +1,12 @@
+//! 护眼助手 Rust/Tauri 2 重写——应用装配
+//! 对照 Electron 版 src/main/index.js 的生命周期/装配职责（W2 范围）
+
+pub mod commands;
 pub mod display;
 pub mod gamma;
 pub mod modes;
 pub mod settings;
+pub mod state;
 pub mod temperature;
 
 use tauri::Manager;
@@ -20,7 +25,20 @@ pub fn run() {
             tauri_plugin_autostart::MacosLauncher::LaunchAgent,
             Some(vec!["--hidden"]),
         ))
+        .invoke_handler(tauri::generate_handler![
+            commands::app_get_version,
+            commands::display_get_state,
+            commands::display_set_temperature,
+            commands::display_restore,
+            commands::modes_list,
+            commands::modes_apply,
+            commands::settings_get,
+            commands::settings_set,
+        ])
         .setup(|app| {
+            // 全局状态：设置 + display（含 dirty 自愈与启动状态 silent 恢复）
+            app.manage(std::sync::Mutex::new(state::bootstrap()));
+
             // --hidden 启动（开机自启场景）不显示主窗口；正常启动显示
             let hidden = std::env::args().any(|a| a == "--hidden");
             if let Some(w) = app.get_webview_window("main") {
