@@ -3,10 +3,11 @@
 // 主题契约锁定：可选主题必须在「面板按钮 / renderer 白名单 / 三窗口 CSS」三处同步。
 // 背景：主题横跨 index/break/propose 三个渲染入口，新增主题若只改 index.*，
 // break/propose 弹窗会静默回退默认皮肤——本测试防止该缺口。
+// 注：Rust 重写版裁剪——原「anime 经 SettingsStore 读回」用例依赖已退役的
+// Electron 侧 settings；持久化闭环现由 Rust settings 测试覆盖。
 const { test } = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
-const os = require('node:os');
 const path = require('node:path');
 
 const ROOT = path.join(__dirname, '..');
@@ -44,18 +45,4 @@ test('主题：applyTheme 由 THEMES 白名单驱动，集合与主题全集一�
   const ids = [...arr[1].matchAll(/'([^']+)'/g)].map((m) => m[1]);
   assert.deepEqual(ids.sort(), [...THEMES].sort(), `白名单与主题全集不一致：${ids.join(', ')}`);
   assert.ok(/THEMES\.includes\(theme\)/.test(js), 'applyTheme 未用 THEMES 白名单过滤未知值');
-});
-
-test('主题：anime 经 SettingsStore 保存后可重新读回（持久化闭环）', () => {
-  const { SettingsStore } = require(path.join(ROOT, 'src', 'main', 'settings'));
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'eyeguard-theme-'));
-  try {
-    const s1 = new SettingsStore({ dataDir: dir });
-    s1.load();
-    s1.save({ theme: 'anime' });
-    const s2 = new SettingsStore({ dataDir: dir });
-    assert.equal(s2.load().theme, 'anime');
-  } finally {
-    fs.rmSync(dir, { recursive: true, force: true });
-  }
 });
