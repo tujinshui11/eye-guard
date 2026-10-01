@@ -10,6 +10,7 @@ const { BreakTimer } = require('./breakTimer');
 const { MODES, getMode } = require('./modes');
 const { resolveDueEntry, alignStartup, markFired } = require('./scheduler');
 const { LumaAnalyzer } = require('./ambient');
+const { detectAls, readAls } = require('./als');
 
 // ---- 单实例锁：护眼工具必须常驻唯一实例 ----
 const gotTheLock = app.requestSingleInstanceLock();
@@ -34,6 +35,8 @@ if (!gotTheLock) {
   let ambientAnalyzer = null;
   let ambientFailures = 0;
   let ambientStoppedReason = null;
+  let ambientSource = null; // 'als'（硬件光感）| 'camera'（摄像头）——探测完成后确定
+  let ambientSession = 0; // 会话令牌：stop/重启后使在途的 ALS 探测失效
   let quitting = false;
 
   // ==== 窗口 ====
@@ -539,6 +542,7 @@ if (!gotTheLock) {
     return {
       enabled: cfg ? !!cfg.enabled : false,
       running: !!ambientTimer,
+      source: ambientSource,
       failures: ambientFailures,
       stoppedReason: ambientStoppedReason,
       analyzer: ambientAnalyzer ? ambientAnalyzer.getState() : null
@@ -553,10 +557,12 @@ if (!gotTheLock) {
   }
 
   function stopAmbientMonitor(reason) {
+    ambientSession++; // 使在途的 ALS 探测失效
     if (ambientTimer) {
       clearInterval(ambientTimer);
       ambientTimer = null;
     }
+    ambientSource = null;
     if (reason) ambientStoppedReason = reason;
     if (cameraWindow && !cameraWindow.isDestroyed()) {
       cameraWindow.close();
@@ -568,7 +574,26 @@ if (!gotTheLock) {
 
   async function sampleAmbientOnce() {
     if (!ambientTimer) return;
-    const res = await sampleAmbient();
+    let res;
+    if (ambientSource === 'als') {
+      const r = await readAls();
+      if (r.lux === null) {
+        ambientFailures++;
+        console.warn('[ambient] ALS 采样失败 ' + ambientFailures + '：' + (r.available ? '无读数' : '不可用'));
+        if (ambientFailures >= 2) {
+          // ALS 连续失败：降级摄像头（而非直接停止监测）
+          ambientSource = 'camera';
+          ambientFailures = 0;
+          ensureCameraWindow();
+          console.warn('[ambient] ALS 连续失败，已回退摄像头测光');
+          broadcastAmbientState();
+        }
+        return;
+      }
+      res = { ok: true, luma: r.lux };
+    } else {
+      res = await sampleAmbient();
+    }
     if (!res.ok) {
       ambientFailures++;
       console.warn('[ambient] 采样失败 ' + ambientFailures + '：' + res.error);
@@ -618,12 +643,19 @@ if (!gotTheLock) {
       dropThresholdPercent: cfg.dropThresholdPercent || 35,
       cooldownMs: (cfg.cooldownMinutes || 15) * 60 * 1000
     });
-    ensureCameraWindow();
+    const session = ambientSession;
     const intervalMs = Math.max(30, Math.min(300, cfg.intervalSeconds || 60)) * 1000;
-    ambientTimer = setInterval(() => sampleAmbientOnce(), intervalMs);
-    setTimeout(() => sampleAmbientOnce(), 3000); // 首采延迟等窗口就绪
-    console.log('[ambient] monitor started, interval=' + intervalMs + 'ms');
-    broadcastAmbientState();
+    // 先探测 ALS：有硬件用传感器（免摄像头、更准更快），无则回退摄像头
+    detectAls().then((hasAls) => {
+      if (session !== ambientSession) return; // 已被 stop/重启取代
+      ambientSource = hasAls ? 'als' : 'camera';
+      if (!hasAls) ensureCameraWindow();
+      ambientTimer = setInterval(() => sampleAmbientOnce(), intervalMs);
+      // ALS 可立即采样；摄像头路径首采延迟等测光窗口就绪
+      setTimeout(() => sampleAmbientOnce(), hasAls ? 200 : 3000);
+      console.log('[ambient] monitor started, source=' + ambientSource + ', interval=' + intervalMs + 'ms');
+      broadcastAmbientState();
+    });
   }
 
   /** 托盘气泡（尽力而为；不支持则静默） */

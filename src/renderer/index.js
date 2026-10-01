@@ -444,7 +444,8 @@ function renderAmbientState(st) {
   if (st.running) {
     const a = st.analyzer || {};
     const base = typeof a.baseline === 'number' && a.baseline > 0 ? Math.round(a.baseline) : '…';
-    ambientStatus.textContent = '监测中 · 基线亮度 ' + base + ' · 样本 ' + (a.samples || 0);
+    const src = st.source === 'als' ? '环境光传感器' : st.source === 'camera' ? '摄像头' : '';
+    ambientStatus.textContent = '监测中 · ' + (src ? src + ' · ' : '') + '基线亮度 ' + base + ' · 样本 ' + (a.samples || 0);
   } else if (st.stoppedReason) {
     ambientStatus.textContent = '已停止：' + st.stoppedReason;
   } else {

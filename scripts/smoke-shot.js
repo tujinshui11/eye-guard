@@ -56,6 +56,7 @@ ipcMain.handle('break:get-state', () => ({ state: 'working', remainingSeconds: 7
 ipcMain.handle('ambient:get-state', () => ({
   enabled: true,
   running: true,
+  source: 'camera',
   stoppedReason: null,
   failures: 0,
   analyzer: { smooth: 92.4, baseline: 95.1, state: 'normal', samples: 12 }
