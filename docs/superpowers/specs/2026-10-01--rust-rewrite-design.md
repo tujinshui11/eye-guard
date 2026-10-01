@@ -16,7 +16,7 @@
 **目标**：
 
 - Electron/Node.js → Rust/Tauri 2 **全量重写，功能对等**：7 档模式 / 色温 2000–10000K / 亮度 / 时间调度 / 感光监测 / 定时休息 / 托盘 / 热键 / 开机自启 / 三主题 / 崩溃自愈——全部保留。
-- **构建与打包 100% 由 GitHub Actions 完成**：push 触发「测试 + 构建」（产物存档），tag `v*` 触发「正式发布」（NSIS 安装器 + 便携 zip 双附件）。
+- **构建与打包 100% 由 GitHub Actions 完成，产物面向分发给他人使用**：push 触发「测试 + 构建」（产物存档），tag `v*` 触发「正式发布」（NSIS 安装器 + 便携 zip 双附件）。**使用方零开发环境依赖**——安装器内置 WebView2 bootstrapper（目标机器缺组件时自动补装），便携包附离线引导。
 - 仓库已公开（2026-10-01 切换，本机 `gh repo view` 实测 `visibility: PUBLIC`）——公开仓库的 Actions 用量免费，CI 额度不构成约束。
 
 **非目标（本版不做，YAGNI）**：
@@ -212,10 +212,10 @@ jobs:
            # cargo test --manifest-path src-tauri/Cargo.toml
   build:   # needs test；tauri-apps/tauri-action 构建；upload-artifact：
            #   NSIS 安装器 + 便携 zip（release exe + icon + 使用说明，Compress-Archive）
-  release: # if tag v*；tauri-action 发布 GitHub Release（自动附双产物 + tag notes）
+  release: # if tag v*；tauri-action 发布 GitHub Release（自动附双产物 + tag notes + 安装说明）
 ```
 
-- 便携 zip = `Compress-Archive`（指向 `src-tauri\target\release\eye-guard.exe` + 说明文档）。
+- 便携 zip = `Compress-Archive`（`eye-guard.exe` + 使用说明 + WebView2 bootstrapper 安装器 ~1.5MB，缺组件机器可离线补装）。
 - NSIS 安装器由 Tauri bundler 内置产出，**内嵌 WebView2 bootstrapper**（缺环境的机器安装时自动补装）。
 - 仓库公开 → Actions 免费无限量；保留 rust-cache 以压缩单次跑时。
 
