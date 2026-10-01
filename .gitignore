@@ -8,6 +8,9 @@ node_modules/
 dist/
 out/
 
+# Rust 构建产物
+src-tauri/target/
+
 # 系统文件
 Thumbs.db
 Desktop.ini
