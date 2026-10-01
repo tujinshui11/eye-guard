@@ -3,3 +3,4 @@
 pub mod als;
 pub mod analyzer;
 pub mod camera;
+pub mod monitor;

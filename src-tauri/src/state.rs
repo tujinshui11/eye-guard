@@ -1,14 +1,36 @@
-//! 全局应用状态（settings + display）——对照 Electron 版主进程的模块级单例
+//! 全局应用状态（settings + display + propose/ambient 运行时）——对照 Electron 版主进程模块级单例
 
+use crate::ambient::analyzer::LumaAnalyzer;
 use crate::display::{DisplayController, RealGammaIo};
 use crate::settings::SettingsStore;
 use serde_json::{json, Value};
 use std::path::PathBuf;
 use std::sync::Mutex;
 
+/// 建议卡片运行时（payload + 世代计数防重）
+#[derive(Default)]
+pub struct ProposeRuntime {
+    pub payload: Option<Value>,
+    pub generation: u64,
+}
+
+/// 感光监测运行时
+#[derive(Default)]
+pub struct AmbientRuntime {
+    pub running: bool,
+    pub source: Option<String>, // "als" | "camera"
+    pub failures: u32,
+    pub stopped_reason: Option<String>,
+    pub analyzer: Option<LumaAnalyzer>,
+    pub interval_ms: u64,
+    pub session: u64,
+}
+
 pub struct AppState {
     pub settings: SettingsStore,
     pub display: DisplayController,
+    pub propose: ProposeRuntime,
+    pub ambient: AmbientRuntime,
 }
 
 pub type SharedState = Mutex<AppState>;
@@ -61,11 +83,16 @@ pub fn bootstrap() -> AppState {
         }
     }
 
-    AppState { settings, display }
+    AppState {
+        settings,
+        display,
+        propose: ProposeRuntime::default(),
+        ambient: AmbientRuntime::default(),
+    }
 }
 
 /// display:changed 的广播载荷（对照 broadcastDisplayChanged）
-/// 注意：JS 版 brightness 在无 overlay 时 fallback 100——W2 尚无 overlay（W4 接入后改读实际值）
+/// 注意：JS 版 brightness 在无 overlay 时 fallback 100——W4 接入 overlay 后改读实际值
 pub fn display_payload(state: &AppState) -> Value {
     let s = state.settings.get();
     json!({

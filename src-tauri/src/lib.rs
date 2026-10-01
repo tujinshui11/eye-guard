@@ -1,11 +1,13 @@
 //! 护眼助手 Rust/Tauri 2 重写——应用装配
-//! 对照 Electron 版 src/main/index.js 的生命周期/装配职责（W2 范围）
+//! 对照 Electron 版 src/main/index.js 的生命周期/装配职责
 
 pub mod ambient;
 pub mod commands;
 pub mod display;
 pub mod gamma;
 pub mod modes;
+pub mod propose;
+pub mod schedule_rt;
 pub mod scheduler;
 pub mod settings;
 pub mod state;
@@ -36,10 +38,20 @@ pub fn run() {
             commands::modes_apply,
             commands::settings_get,
             commands::settings_set,
+            commands::propose_action,
+            commands::ambient_get_state,
         ])
         .setup(|app| {
             // 全局状态：设置 + display（含 dirty 自愈与启动状态 silent 恢复）
             app.manage(std::sync::Mutex::new(state::bootstrap()));
+            let handle = app.handle().clone();
+
+            // 调度：启动对齐 + 30s tick（含唤醒跳变检测）
+            schedule_rt::align_schedule_on_boot(&handle, "boot");
+            schedule_rt::start_scheduler(handle.clone());
+
+            // 感光：按配置启动（默认关闭）
+            ambient::monitor::start_ambient_monitor(&handle, "boot");
 
             // --hidden 启动（开机自启场景）不显示主窗口；正常启动显示
             let hidden = std::env::args().any(|a| a == "--hidden");

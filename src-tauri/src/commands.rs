@@ -1,14 +1,13 @@
-//! Tauri IPC 命令——对照移植 src/main/index.js 的 ipcMain.handle 区（W2 范围）
+//! Tauri IPC 命令——对照移植 src/main/index.js 的 ipcMain.handle 区
 //!
-//! W2 范围：app_get_version / display_get_state / display_set_temperature / display_restore /
-//!          modes_list / modes_apply / settings_get / settings_set
+//! 已覆盖：W2 显示类 8 命令 + W3 propose_action / ambient_get_state
 //! 延后：display_set_brightness（与 overlay 遮罩同属 W4——JS 版亮度即遮罩驱动）
 
 use crate::display::ApplyOutcome;
 use crate::modes::{get_mode, MODES};
-use crate::state::{display_payload, SharedState};
+use crate::state::{display_payload, AppState, SharedState};
 use serde_json::{json, Value};
-use tauri::{AppHandle, Emitter, State};
+use tauri::{AppHandle, Emitter, Manager, State};
 
 fn outcome_to_json(o: &ApplyOutcome) -> Value {
     let mut v = json!({
@@ -23,6 +22,50 @@ fn outcome_to_json(o: &ApplyOutcome) -> Value {
         v["error"] = json!(e);
     }
     v
+}
+
+/// applyMode 的单一入口内部实现（对照 index.js:176）——命令与调度/感光壳共用
+pub(crate) fn apply_mode_with_app(
+    app: &AppHandle,
+    mode_id: &str,
+    persist: bool,
+    silent: bool,
+) -> Value {
+    let state = app.state::<SharedState>();
+    let mut st = state.lock().unwrap();
+    let Some(mode) = get_mode(mode_id) else {
+        return json!({ "ok": false, "error": format!("未知模式：{mode_id}") });
+    };
+
+    let outcome = st.display.apply(mode.kelvin as f64);
+    let effective = st.display.current_temperature;
+
+    if persist {
+        if let Err(e) = st.settings.save(&json!({
+            "enabled": true,
+            "modeId": mode.id,
+            "temperature": effective,
+            "brightness": mode.brightness
+        })) {
+            return json!({ "ok": false, "error": e.to_string() });
+        }
+    }
+
+    if !silent {
+        let _ = app.emit("display:changed", display_payload(&st));
+    }
+
+    json!({
+        "ok": outcome.ok,
+        "mode": {
+            "id": mode.id,
+            "name": mode.name,
+            "kelvin": mode.kelvin,
+            "brightness": mode.brightness
+        },
+        "temperature": effective,
+        "brightness": mode.brightness
+    })
 }
 
 #[tauri::command]
@@ -102,46 +145,10 @@ pub fn modes_list() -> Vec<Value> {
         .collect()
 }
 
-/// 对照 applyMode（index.js:176）——单一入口语义：
-/// 未知模式 → {ok:false,error}；应用色温 → 无条件持久化 {enabled:true,modeId,生效色温,亮度} →
-/// 无条件广播；返回 {ok, mode, temperature, brightness}
-/// （W2 无 overlay：brightness 直接取 mode.brightness——等价 JS 的 overlay=null 分支）
+/// 对照 modes:apply（index.js:716）——默认 persist=true、silent=false
 #[tauri::command]
-pub fn modes_apply(
-    app: AppHandle,
-    state: State<'_, SharedState>,
-    mode_id: String,
-) -> Result<Value, String> {
-    let mut st = state.lock().unwrap();
-    let Some(mode) = get_mode(&mode_id) else {
-        return Ok(json!({ "ok": false, "error": format!("未知模式：{}", mode_id) }));
-    };
-
-    let outcome = st.display.apply(mode.kelvin as f64);
-    let effective = st.display.current_temperature;
-
-    st.settings
-        .save(&json!({
-            "enabled": true,
-            "modeId": mode.id,
-            "temperature": effective,
-            "brightness": mode.brightness
-        }))
-        .map_err(|e| e.to_string())?;
-
-    let _ = app.emit("display:changed", display_payload(&st));
-
-    Ok(json!({
-        "ok": outcome.ok,
-        "mode": {
-            "id": mode.id,
-            "name": mode.name,
-            "kelvin": mode.kelvin,
-            "brightness": mode.brightness
-        },
-        "temperature": effective,
-        "brightness": mode.brightness
-    }))
+pub fn modes_apply(app: AppHandle, mode_id: String) -> Value {
+    apply_mode_with_app(&app, &mode_id, true, false)
 }
 
 /// 对照 settings:get（index.js:730）
@@ -150,26 +157,46 @@ pub fn settings_get(state: State<'_, SharedState>) -> Value {
     state.lock().unwrap().settings.get().clone()
 }
 
-/// 对照 settings:set（index.js:732）：clean patch → save → theme 联动广播 → 返回 next
-/// （breaks/ambient 联动属 W3/W4）
+/// 对照 settings:set（index.js:732）：clean patch → save → theme/ambient 联动 → 返回 next
+/// （breaks 联动属 W4）
 #[tauri::command]
 pub fn settings_set(
     app: AppHandle,
     state: State<'_, SharedState>,
     patch: Value,
 ) -> Result<Value, String> {
-    let mut st = state.lock().unwrap();
     let clean = if patch.is_object() { patch } else { json!({}) };
-    let next = st
-        .settings
-        .save(&clean)
-        .map_err(|e| e.to_string())?
-        .clone();
+    let next = {
+        let mut st = state.lock().unwrap();
+        st.settings
+            .save(&clean)
+            .map_err(|e| e.to_string())?
+            .clone()
+    };
 
     if clean.get("theme").is_some() {
         let theme = next.get("theme").cloned().unwrap_or(json!("deepsea"));
         let _ = app.emit("theme:changed", theme);
     }
+    if clean.get("ambient").is_some() {
+        crate::ambient::monitor::start_ambient_monitor(&app, "settings");
+    }
 
     Ok(next)
 }
+
+/// 对照 propose:action（index.js:794）
+#[tauri::command]
+pub fn propose_action(app: AppHandle, name: String) -> bool {
+    crate::propose::resolve_propose(&app, &name)
+}
+
+/// 对照 ambient:get-state（index.js:799）
+#[tauri::command]
+pub fn ambient_get_state(app: AppHandle) -> Value {
+    crate::ambient::monitor::ambient_state(&app)
+}
+
+/// 供状态读取（未导出至 IPC 的内部使用）
+#[allow(dead_code)]
+fn _state_typecheck(_: &AppState) {}
