@@ -1,4 +1,5 @@
 pub mod modes;
+pub mod settings;
 pub mod temperature;
 
 use tauri::Manager;
