@@ -7,6 +7,7 @@ const { SettingsStore } = require('./settings');
 const { BrightnessOverlay } = require('./overlay');
 const { registerHotkeys, unregisterAll } = require('./hotkeys');
 const { BreakTimer } = require('./breakTimer');
+const { MODES, getMode } = require('./modes');
 
 // ---- 单实例锁：护眼工具必须常驻唯一实例 ----
 const gotTheLock = app.requestSingleInstanceLock();
@@ -28,10 +29,10 @@ if (!gotTheLock) {
 
   function createMainWindow() {
     mainWindow = new BrowserWindow({
-      width: 420,
-      height: 560,
+      width: 440,
+      height: 680,
       show: false,
-      backgroundColor: '#12151a',
+      backgroundColor: '#0B0F1A',
       resizable: false,
       maximizable: false,
       fullscreenable: false,
@@ -101,10 +102,10 @@ if (!gotTheLock) {
     }
   }
 
-  /** 应用色温（可选持久化） */
-  function setTemperature(k, { persist = true, preset = 'custom' } = {}) {
+  /** 应用色温（可选持久化；modeId：手动调节置 custom，模式应用由 applyMode 统一持盘） */
+  function setTemperature(k, { persist = true, modeId = 'custom', silent = false } = {}) {
     if (!display) return { ok: false, error: '当前环境不支持屏幕色温调节' };
-    const t = Math.min(6500, Math.max(2000, Number(k) || 6500));
+    const t = Math.min(10000, Math.max(2000, Number(k) || 6500));
     let res;
     try {
       res = display.apply(t);
@@ -112,22 +113,24 @@ if (!gotTheLock) {
       return { ok: false, error: err.message };
     }
     if (res.ok && persist && settings) {
-      settings.save({ temperature: res.effectiveTemperature, preset });
+      settings.save({ temperature: res.effectiveTemperature, modeId });
     }
+    if (res.ok && !silent) broadcastDisplayChanged();
     return res;
   }
 
   function nudgeTemperature(delta) {
     const cur = display ? display.current.temperature : 6500;
-    const next = Math.min(6500, Math.max(2000, cur + delta));
+    const next = Math.min(10000, Math.max(2000, cur + delta));
     console.log('[temp] nudge ' + delta + ' -> ' + next);
     return setTemperature(next);
   }
 
-  function setBrightness(b, { persist = true } = {}) {
+  function setBrightness(b, { persist = true, modeId = 'custom', silent = false } = {}) {
     if (!overlay) return { ok: false, brightness: 100 };
     const v = overlay.setBrightness(b);
-    if (persist && settings) settings.save({ brightness: v });
+    if (persist && settings) settings.save({ brightness: v, modeId });
+    if (!silent) broadcastDisplayChanged();
     return { ok: true, brightness: v };
   }
 
@@ -135,7 +138,9 @@ if (!gotTheLock) {
     if (settings) settings.save({ enabled: false });
     if (!display) return false;
     try {
-      return display.restore();
+      const ok = display.restore();
+      broadcastDisplayChanged();
+      return ok;
     } catch (err) {
       console.error('[display] restore 失败:', err.message);
       return false;
@@ -144,8 +149,57 @@ if (!gotTheLock) {
 
   function reenableColor() {
     if (settings) settings.save({ enabled: true });
-    const t = settings ? settings.get().temperature : 4500;
-    return setTemperature(t, { persist: true, preset: settings ? settings.get().preset : 'custom' });
+    const s = settings ? settings.get() : null;
+    const mode = s && getMode(s.modeId);
+    if (mode) return applyMode(s.modeId);
+    return setTemperature(s ? s.temperature : 4500, { persist: false });
+  }
+
+  /**
+   * 应用场景模式（v2 单一入口：UI 网格 / 托盘 / 调度 / 感光共用）
+   * 模式 = 色温 + 亮度组合；应用即隐式启用护眼色彩
+   */
+  function applyMode(modeId, { persist = true, silent = false } = {}) {
+    const mode = getMode(modeId);
+    if (!mode) return { ok: false, error: '未知模式：' + modeId };
+    const tRes = setTemperature(mode.kelvin, { persist: false, silent: true });
+    setBrightness(mode.brightness, { persist: false, silent: true });
+    if (persist && settings) {
+      settings.save({
+        enabled: true,
+        modeId,
+        temperature: display ? display.current.temperature : mode.kelvin,
+        brightness: overlay ? overlay.brightness : mode.brightness
+      });
+    }
+    if (!silent) broadcastDisplayChanged();
+    return {
+      ok: !!tRes.ok,
+      mode: Object.assign({}, mode),
+      temperature: display ? display.current.temperature : mode.kelvin,
+      brightness: overlay ? overlay.brightness : mode.brightness
+    };
+  }
+
+  /** 广播显示状态（模式 / 色温 / 亮度 / enabled）→ 各窗口 UI 回填 */
+  function broadcastDisplayChanged() {
+    const s = settings ? settings.get() : null;
+    const payload = {
+      temperature: display ? display.current.temperature : 6500,
+      brightness: overlay ? overlay.brightness : 100,
+      modeId: s ? s.modeId : 'natural',
+      enabled: s ? s.enabled : true
+    };
+    for (const win of [mainWindow, breakWindow]) {
+      if (win && !win.isDestroyed()) win.webContents.send('display:changed', payload);
+    }
+  }
+
+  /** 广播主题变化 → 各窗口切换 data-theme */
+  function broadcastThemeChanged(theme) {
+    for (const win of [mainWindow, breakWindow]) {
+      if (win && !win.isDestroyed()) win.webContents.send('theme:changed', theme);
+    }
   }
 
   /** 开机自启（H3：写入后回读校验） */
@@ -320,15 +374,13 @@ if (!gotTheLock) {
   // ==== 托盘聚合操作 ====
 
   const trayActions = {
-    applyPreset: (k, name) => {
-      if (settings) settings.save({ enabled: true });
-      return setTemperature(k, { persist: true, preset: name });
-    },
+    applyMode: (modeId) => applyMode(modeId),
     tempDelta: nudgeTemperature,
     restoreColor,
     reenableColor,
     getState: () => ({
       temperature: display ? display.current.temperature : 6500,
+      modeId: settings ? settings.get().modeId : 'natural',
       enabled: settings ? settings.get().enabled : true,
       breakPaused: breakTimer ? breakTimer.getState().state === 'paused' : false
     }),
@@ -338,12 +390,19 @@ if (!gotTheLock) {
 
   function applyStartupState() {
     const s = settings.get();
-    if (s.enabled && display && s.temperature && s.temperature !== 6500) {
-      const r = setTemperature(s.temperature, { persist: false, preset: s.preset });
+    if (!s.enabled) return;
+    const mode = getMode(s.modeId);
+    if (mode) {
+      const r = applyMode(s.modeId, { persist: false, silent: true });
+      console.log('[boot] 恢复模式 ' + s.modeId + '（' + mode.name + '）→ 生效 ' + r.temperature + 'K / ' + r.brightness + '%');
+      return;
+    }
+    if (display && s.temperature && s.temperature !== 6500) {
+      const r = setTemperature(s.temperature, { persist: false, silent: true });
       console.log('[boot] 恢复上次色温:', JSON.stringify(r));
     }
     if (s.brightness < 100) {
-      setBrightness(s.brightness, { persist: false });
+      setBrightness(s.brightness, { persist: false, silent: true });
       console.log('[boot] 恢复上次亮度: ' + s.brightness);
     }
   }
@@ -354,11 +413,16 @@ if (!gotTheLock) {
 
   ipcMain.handle('display:set-temperature', (e, k) => setTemperature(k));
 
+  ipcMain.handle('modes:list', () => MODES.map((m) => Object.assign({}, m)));
+
+  ipcMain.handle('modes:apply', (e, modeId) => applyMode(modeId));
+
   ipcMain.handle('display:get-state', () => ({
     available: !!display,
     enabled: settings ? settings.get().enabled : true,
     temperature: display ? display.current.temperature : 6500,
-    brightness: overlay ? overlay.brightness : 100
+    brightness: overlay ? overlay.brightness : 100,
+    modeId: settings ? settings.get().modeId : 'natural'
   }));
 
   ipcMain.handle('display:restore', () => restoreColor());
@@ -371,6 +435,9 @@ if (!gotTheLock) {
     if (!settings) return null;
     const clean = patch && typeof patch === 'object' && !Array.isArray(patch) ? patch : {};
     const next = settings.save(clean);
+
+    // 联动：主题变更 → 广播所有窗口（含发起窗口自身，幂等）
+    if (clean.theme) broadcastThemeChanged(next.theme);
 
     // 联动：breaks 配置变更 → 重配置状态机
     if (clean.breaks && breakTimer) {
