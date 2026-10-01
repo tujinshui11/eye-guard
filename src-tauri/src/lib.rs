@@ -1,10 +1,12 @@
 //! 护眼助手 Rust/Tauri 2 重写——应用装配
 //! 对照 Electron 版 src/main/index.js 的生命周期/装配职责（W2 范围）
 
+pub mod ambient;
 pub mod commands;
 pub mod display;
 pub mod gamma;
 pub mod modes;
+pub mod scheduler;
 pub mod settings;
 pub mod state;
 pub mod temperature;
