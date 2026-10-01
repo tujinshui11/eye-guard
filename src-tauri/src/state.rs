@@ -1,6 +1,7 @@
-//! 全局应用状态（settings + display + propose/ambient 运行时）——对照 Electron 版主进程模块级单例
+//! 全局应用状态（settings + display + 各运行时）——对照 Electron 版主进程模块级单例
 
 use crate::ambient::analyzer::LumaAnalyzer;
+use crate::break_timer::BreakTimer;
 use crate::display::{DisplayController, RealGammaIo};
 use crate::settings::SettingsStore;
 use serde_json::{json, Value};
@@ -31,6 +32,8 @@ pub struct AppState {
     pub display: DisplayController,
     pub propose: ProposeRuntime,
     pub ambient: AmbientRuntime,
+    pub break_timer: BreakTimer,
+    pub overlay_brightness: u32,
 }
 
 pub type SharedState = Mutex<AppState>;
@@ -88,16 +91,17 @@ pub fn bootstrap() -> AppState {
         display,
         propose: ProposeRuntime::default(),
         ambient: AmbientRuntime::default(),
+        break_timer: BreakTimer::new(),
+        overlay_brightness: 100,
     }
 }
 
 /// display:changed 的广播载荷（对照 broadcastDisplayChanged）
-/// 注意：JS 版 brightness 在无 overlay 时 fallback 100——W4 接入 overlay 后改读实际值
 pub fn display_payload(state: &AppState) -> Value {
     let s = state.settings.get();
     json!({
         "temperature": state.display.current_temperature,
-        "brightness": 100,
+        "brightness": state.overlay_brightness,
         "modeId": s.get("modeId").cloned().unwrap_or(json!("natural")),
         "enabled": s.get("enabled").cloned().unwrap_or(json!(true))
     })

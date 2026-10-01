@@ -2,16 +2,21 @@
 //! 对照 Electron 版 src/main/index.js 的生命周期/装配职责
 
 pub mod ambient;
+pub mod break_rt;
+pub mod break_timer;
 pub mod commands;
 pub mod display;
 pub mod gamma;
+pub mod hotkeys;
 pub mod modes;
+pub mod overlay;
 pub mod propose;
 pub mod schedule_rt;
 pub mod scheduler;
 pub mod settings;
 pub mod state;
 pub mod temperature;
+pub mod tray;
 
 use tauri::Manager;
 
@@ -33,11 +38,16 @@ pub fn run() {
             commands::app_get_version,
             commands::display_get_state,
             commands::display_set_temperature,
+            commands::display_set_brightness,
             commands::display_restore,
             commands::modes_list,
             commands::modes_apply,
             commands::settings_get,
             commands::settings_set,
+            commands::break_get_state,
+            commands::break_action,
+            commands::app_set_auto_launch,
+            commands::app_get_auto_launch,
             commands::propose_action,
             commands::ambient_get_state,
         ])
@@ -53,6 +63,15 @@ pub fn run() {
             // 感光：按配置启动（默认关闭）
             ambient::monitor::start_ambient_monitor(&handle, "boot");
 
+            // 休息提醒系统（1s tick + 窗口）
+            break_rt::start_break_system(handle.clone());
+
+            // 托盘 + 全局热键
+            if let Err(e) = tray::create_tray(&handle) {
+                eprintln!("[boot] tray 创建失败: {e}");
+            }
+            hotkeys::register_hotkeys(&handle);
+
             // --hidden 启动（开机自启场景）不显示主窗口；正常启动显示
             let hidden = std::env::args().any(|a| a == "--hidden");
             if let Some(w) = app.get_webview_window("main") {
@@ -60,6 +79,7 @@ pub fn run() {
                     let _ = w.show();
                 }
             }
+            eprintln!("[boot] all initialized");
             Ok(())
         })
         .on_window_event(|window, event| {
@@ -71,6 +91,15 @@ pub fn run() {
                 }
             }
         })
-        .run(tauri::generate_context!())
-        .expect("error while running tauri application");
+        .build(tauri::generate_context!())
+        .expect("error while building tauri application")
+        .run(|app, event| {
+            // 退出前恢复原始色彩（README 承诺「退出自动还原屏幕原色」）
+            if let tauri::RunEvent::ExitRequested { .. } = event {
+                let state = app.state::<state::SharedState>();
+                let mut st = state.lock().unwrap();
+                let _ = st.display.restore();
+                eprintln!("[exit] 已恢复原始色彩");
+            }
+        });
 }
