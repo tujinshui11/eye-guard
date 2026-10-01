@@ -2,7 +2,11 @@
 
 const { contextBridge, ipcRenderer } = require('electron');
 
-// 白名单 IPC API（W1 基础版；W2 起扩展色温/亮度/提醒通道）
+// 白名单 IPC API
 contextBridge.exposeInMainWorld('eyeGuard', {
-  getVersion: () => ipcRenderer.invoke('app:get-version')
+  getVersion: () => ipcRenderer.invoke('app:get-version'),
+  // 色温（W2）
+  getDisplayState: () => ipcRenderer.invoke('display:get-state'),
+  setTemperature: (k) => ipcRenderer.invoke('display:set-temperature', k),
+  restoreColor: () => ipcRenderer.invoke('display:restore')
 });

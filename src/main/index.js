@@ -2,6 +2,7 @@
 
 const { app, BrowserWindow, ipcMain } = require('electron');
 const path = require('path');
+const { DisplayController } = require('./display');
 
 // ---- 单实例锁：护眼工具必须常驻唯一实例 ----
 const gotTheLock = app.requestSingleInstanceLock();
@@ -11,6 +12,7 @@ if (!gotTheLock) {
   const isHiddenLaunch = process.argv.includes('--hidden');
   let mainWindow = null;
   let tray = null;
+  let display = null;
   let quitting = false;
 
   function createMainWindow() {
@@ -69,8 +71,47 @@ if (!gotTheLock) {
 
   ipcMain.handle('app:get-version', () => app.getVersion());
 
+  // ---- 显示控制器（gamma ramp 色温调节）----
+  function initDisplay() {
+    try {
+      display = new DisplayController({ dataDir: app.getPath('userData') });
+      const { healed } = display.init();
+      console.log('[boot] display initialized, healed=' + healed);
+    } catch (err) {
+      display = null;
+      console.error('[boot] display init failed:', err.message);
+    }
+  }
+
+  ipcMain.handle('display:set-temperature', (e, k) => {
+    if (!display) return { ok: false, error: '当前环境不支持屏幕色温调节' };
+    const t = Math.min(6500, Math.max(2000, Number(k) || 6500));
+    try {
+      return display.apply(t);
+    } catch (err) {
+      return { ok: false, error: err.message };
+    }
+  });
+
+  ipcMain.handle('display:get-state', () => ({
+    available: !!display,
+    enabled: display ? display.current.enabled : false,
+    temperature: display ? display.current.temperature : 6500
+  }));
+
+  ipcMain.handle('display:restore', () => {
+    if (!display) return false;
+    try {
+      return display.restore();
+    } catch (err) {
+      console.error('[ipc] display:restore 失败:', err.message);
+      return false;
+    }
+  });
+
   app.whenReady().then(() => {
     console.log('[boot] app ready');
+    initDisplay();
     createMainWindow();
 
     const { createTray } = require('./tray');
@@ -92,5 +133,14 @@ if (!gotTheLock) {
 
   app.on('before-quit', () => {
     quitting = true;
+    // 退出前恢复屏幕原始色彩（dirty 兜底见 display.js）
+    if (display && display.originalRamp) {
+      try {
+        const ok = display.restore();
+        console.log('[quit] 恢复原始色彩: ' + (ok ? 'OK' : 'FAILED'));
+      } catch (err) {
+        console.warn('[quit] 恢复失败:', err.message);
+      }
+    }
   });
 }

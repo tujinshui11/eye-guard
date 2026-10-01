@@ -55,3 +55,19 @@ input[type="range"]:disabled { opacity: 0.45; }
 .value { color: var(--accent); font-weight: 600; }
 .hint { color: var(--muted); font-size: 11px; }
 .placeholder { color: var(--muted); font-size: 12px; }
+
+.presets { display: flex; gap: 6px; margin-top: 8px; }
+.presets button {
+  flex: 1;
+  padding: 5px 0;
+  font-size: 11px;
+  color: var(--text);
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  cursor: pointer;
+  transition: border-color 0.15s, color 0.15s;
+}
+.presets button:hover { border-color: var(--accent); color: var(--accent); }
+.note { margin-top: 8px; font-size: 11px; color: #e8b04a; line-height: 1.4; }
+.hidden { display: none; }
