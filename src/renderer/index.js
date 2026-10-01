@@ -1,25 +1,53 @@
 'use strict';
 
-// 设置面板交互（W2：色温接线；W3+ 扩展亮度/提醒/通用）
+// 设置面板交互（W3：色温 + 亮度接线；W4+ 扩展提醒/通用）
 
 const tempSlider = document.getElementById('temperature');
 const tempValue = document.getElementById('temperature-value');
 const tempNote = document.getElementById('temp-note');
+const brightSlider = document.getElementById('brightness');
+const brightValue = document.getElementById('brightness-value');
 const versionEl = document.getElementById('version');
 
-let throttleTimer = null;
-let pendingK = null;
+// ---- 通用节流 ----
+function throttled(fn, ms) {
+  let timer = null;
+  let pending = null;
+  const flush = () => {
+    timer = null;
+    if (pending !== null) {
+      const v = pending;
+      pending = null;
+      fn(v);
+    }
+  };
+  return {
+    input(v) {
+      pending = v;
+      if (!timer) timer = setTimeout(flush, ms);
+    },
+    commit(v) {
+      if (timer) {
+        clearTimeout(timer);
+        timer = null;
+      }
+      pending = null;
+      fn(v);
+    }
+  };
+}
 
 function showNote(text) {
   tempNote.textContent = text;
   tempNote.classList.toggle('hidden', !text);
 }
 
+// ---- 色温 ----
+
 async function applyTemperature(k) {
   try {
     const res = await window.eyeGuard.setTemperature(k);
     if (res && res.ok) {
-      // 显示实际生效色温（可能因显卡限制被钳制）
       tempValue.textContent = res.effectiveTemperature;
       if (res.clamped) {
         showNote('受显卡限制，本机实际最低约 ' + res.effectiveTemperature + 'K');
@@ -34,32 +62,15 @@ async function applyTemperature(k) {
   }
 }
 
-function scheduleApply(k) {
-  pendingK = k;
-  if (throttleTimer) return;
-  throttleTimer = setTimeout(() => {
-    throttleTimer = null;
-    if (pendingK !== null) {
-      const k2 = pendingK;
-      pendingK = null;
-      applyTemperature(k2);
-    }
-  }, 40);
-}
+const tempThrottle = throttled(applyTemperature, 40);
 
 tempSlider.addEventListener('input', () => {
   tempValue.textContent = tempSlider.value;
-  scheduleApply(Number(tempSlider.value));
+  tempThrottle.input(Number(tempSlider.value));
 });
 
-// 松开滑块：立即应用最终值（覆盖节流尾巴）
 tempSlider.addEventListener('change', () => {
-  if (throttleTimer) {
-    clearTimeout(throttleTimer);
-    throttleTimer = null;
-  }
-  pendingK = null;
-  applyTemperature(Number(tempSlider.value));
+  tempThrottle.commit(Number(tempSlider.value));
 });
 
 document.querySelectorAll('.presets button').forEach((btn) => {
@@ -71,6 +82,23 @@ document.querySelectorAll('.presets button').forEach((btn) => {
   });
 });
 
+// ---- 亮度 ----
+
+const brightThrottle = throttled((b) => {
+  window.eyeGuard.setBrightness(b).catch(() => {});
+}, 40);
+
+brightSlider.addEventListener('input', () => {
+  brightValue.textContent = brightSlider.value;
+  brightThrottle.input(Number(brightSlider.value));
+});
+
+brightSlider.addEventListener('change', () => {
+  brightThrottle.commit(Number(brightSlider.value));
+});
+
+// ---- 启动状态 ----
+
 window.addEventListener('DOMContentLoaded', async () => {
   try {
     const version = await window.eyeGuard.getVersion();
@@ -80,9 +108,15 @@ window.addEventListener('DOMContentLoaded', async () => {
   }
   try {
     const state = await window.eyeGuard.getDisplayState();
-    if (state && state.available && state.temperature) {
-      tempSlider.value = String(state.temperature);
-      tempValue.textContent = String(state.temperature);
+    if (state) {
+      if (state.temperature) {
+        tempSlider.value = String(state.temperature);
+        tempValue.textContent = String(state.temperature);
+      }
+      if (state.brightness) {
+        brightSlider.value = String(state.brightness);
+        brightValue.textContent = String(state.brightness);
+      }
     }
   } catch (err) {
     console.warn('显示状态读取失败:', err && err.message);
