@@ -1,0 +1,32 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self' 'unsafe-inline'" />
+  <title>建议</title>
+  <link rel="stylesheet" href="propose.css" />
+</head>
+<body data-kind="schedule">
+  <div class="card">
+    <div class="head">
+      <div class="whale" aria-hidden="true">
+        <svg width="30" height="30" viewBox="0 0 32 32" fill="none">
+          <path class="whale-tail"
+            d="M16 5 C15 10 14.2 13.6 13 16.4 C10.6 15.2 8.4 15.4 6.6 16.8 C5 18 4.2 19.8 4 21.8 C4.2 21.6 6.2 20.2 8.2 20.4 C10 20.6 11.6 21.8 12.4 23.6 C13.1 21.6 14 20.2 15.2 19.4 C15.5 21.2 15.8 23.4 16 26 C16.2 23.4 16.5 21.2 16.8 19.4 C18 20.2 18.9 21.6 19.6 23.6 C20.4 21.8 22 20.6 23.8 20.4 C25.8 20.2 27.8 21.6 28 21.8 C27.8 19.8 27 18 25.4 16.8 C23.6 15.4 21.4 15.2 19 16.4 C17.8 13.6 17 10 16 5 Z"
+            fill="currentColor" />
+        </svg>
+      </div>
+      <div class="texts">
+        <h1 id="title">现在是 22:00</h1>
+        <p id="body" class="body">切换到「夜晚 3400K」吗？</p>
+      </div>
+    </div>
+    <div id="actions" class="actions">
+      <button id="btn-apply" class="primary">切换</button>
+      <button id="btn-dismiss">忽略</button>
+      <button id="btn-mute">今天不再问</button>
+    </div>
+  </div>
+  <script src="propose.js"></script>
+</body>
+</html>
