@@ -220,7 +220,9 @@ if (!gotTheLock) {
         openAtLogin: !!enabled,
         args: ['--hidden']
       });
-      const check = app.getLoginItemSettings();
+      // 回读必须与写入使用【相同的 args】：Windows 端按「exe 路径 + 参数」完整字符串精确比对，
+      // 缺 --hidden 会永远读回 false（表现为：点勾选框后立即弹回）。真机实测见 .rivet/scratch/autolaunch-probe。
+      const check = app.getLoginItemSettings({ args: ['--hidden'] });
       console.log(
         '[autoLaunch] 设置 openAtLogin=' + !!enabled +
         ' | 回读=' + check.openAtLogin +
@@ -729,7 +731,8 @@ if (!gotTheLock) {
 
   ipcMain.handle('app:get-auto-launch', () => {
     try {
-      const check = app.getLoginItemSettings();
+      // 与 setAutoLaunch 写入端一致的 args；否则 Windows 下永远读回 false
+      const check = app.getLoginItemSettings({ args: ['--hidden'] });
       return { openAtLogin: check.openAtLogin, args: check.args || [] };
     } catch (err) {
       return { openAtLogin: false, args: [], error: err.message };
