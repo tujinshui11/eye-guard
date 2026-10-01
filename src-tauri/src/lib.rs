@@ -56,6 +56,20 @@ pub fn run() {
             app.manage(std::sync::Mutex::new(state::bootstrap()));
             let handle = app.handle().clone();
 
+            // 启动状态：亮度恢复（对照 applyStartupState 的 brightness < 100 → setBrightness 分支）
+            let init_brightness = {
+                let state = handle.state::<state::SharedState>();
+                let st = state.lock().unwrap();
+                st.settings
+                    .get()
+                    .get("brightness")
+                    .and_then(|v| v.as_u64())
+                    .unwrap_or(100)
+            };
+            if init_brightness < 100 {
+                overlay::set_overlay_brightness(&handle, init_brightness as f64);
+            }
+
             // 调度：启动对齐 + 30s tick（含唤醒跳变检测）
             schedule_rt::align_schedule_on_boot(&handle, "boot");
             schedule_rt::start_scheduler(handle.clone());
