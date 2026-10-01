@@ -88,8 +88,11 @@ function makeThrottle(fn, ms) {
 
 // ---- 主题 ----
 
+// 可选主题全集（applyTheme 白名单：未知值回落深海）
+const THEMES = ['deepsea', 'warm', 'anime'];
+
 function applyTheme(theme) {
-  const t = theme === 'warm' ? 'warm' : 'deepsea';
+  const t = THEMES.includes(theme) ? theme : 'deepsea';
   document.documentElement.dataset.theme = t;
   document.querySelectorAll('.theme-btn').forEach((b) => {
     b.classList.toggle('active', b.dataset.theme === t);

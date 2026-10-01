@@ -1,6 +1,6 @@
 /* 护眼助手 · 建议卡片窗口（propose）——悬浮细长卡片
    配合主进程 transparent + frame:false 窗口；四角为真圆角
-   主题：深海（默认）/ 暖橙（warm）——由 html[data-theme] 切换
+   主题：深海（默认）/ 暖橙（warm）/ 二次元（anime）——由 html[data-theme] 切换
    主题变量契约与 break.css 一致 */
 
 :root {
@@ -31,6 +31,22 @@ html[data-theme="warm"] {
   --accent-wash: rgba(255,158,66,0.07);
   --accent-glow: rgba(255,158,66,0.35);
   --line: rgba(255,255,255,0.07);
+}
+
+/* 二次元主题（anime）：蓝发鲸娘 —— 星夜靛蓝 + 糖果按钮 */
+html[data-theme="anime"] {
+  --bg: #12162B;
+  --panel: #1B2140;
+  --panel-hi: #242C58;
+  --text: #EEF1FF;
+  --muted: #8E9AC9;
+  --accent: #7C9CFF;
+  --accent-2: #FFB3C8;
+  --accent-soft: rgba(124,156,255,0.16);
+  --accent-line: rgba(124,156,255,0.55);
+  --accent-wash: rgba(124,156,255,0.10);
+  --accent-glow: rgba(124,156,255,0.45);
+  --line: rgba(196,214,255,0.14);
 }
 
 * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -138,3 +154,55 @@ button.mute { color: var(--muted); }
 button.mute:hover { color: var(--accent); }
 
 .hidden { display: none !important; }
+
+/* ---- 二次元主题（anime）：星点卡片 + 糖果胶囊按钮 ---- */
+
+html[data-theme="anime"] .card {
+  border-color: rgba(196, 214, 255, 0.22);
+  box-shadow:
+    inset 0 1px 0 rgba(238, 241, 255, 0.06),
+    0 0 0 3px rgba(238, 241, 255, 0.06),
+    0 18px 44px rgba(0, 0, 0, 0.5);
+  background:
+    radial-gradient(1.3px 1.3px at 30px 28px, rgba(232, 240, 255, 0.5), transparent 60%),
+    radial-gradient(1px 1px at 180px 46px, rgba(255, 179, 200, 0.45), transparent 60%),
+    radial-gradient(1.1px 1.1px at 102px 118px, rgba(178, 204, 255, 0.42), transparent 60%),
+    radial-gradient(120% 90% at 50% -10%, var(--accent-wash), transparent 55%),
+    linear-gradient(180deg, var(--panel-hi), var(--panel));
+  background-size: 240px 160px, 240px 160px, 240px 160px, auto, auto;
+  background-repeat: repeat, repeat, repeat, no-repeat, no-repeat;
+}
+
+html[data-theme="anime"] button {
+  border-radius: 999px;
+  border-color: rgba(196, 214, 255, 0.22);
+  background: linear-gradient(135deg, rgba(124, 156, 255, 0.16), rgba(255, 179, 200, 0.10));
+}
+
+html[data-theme="anime"] button:hover {
+  border-color: var(--accent);
+  color: var(--text);
+  background: linear-gradient(135deg, rgba(124, 156, 255, 0.40), rgba(255, 179, 200, 0.26));
+}
+
+html[data-theme="anime"] button.primary {
+  background: linear-gradient(135deg, var(--accent), var(--accent-2));
+  border-color: transparent;
+  color: #141A33;
+}
+
+html[data-theme="anime"] button.primary:hover {
+  background: linear-gradient(135deg, #90AAFF, #FFC4D5);
+  color: #141A33;
+}
+
+html[data-theme="anime"] button.mute {
+  background: transparent;
+  border-color: rgba(196, 214, 255, 0.16);
+  color: var(--muted);
+}
+
+html[data-theme="anime"] button.mute:hover {
+  color: var(--accent);
+  background: rgba(124, 156, 255, 0.10);
+}

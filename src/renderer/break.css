@@ -1,6 +1,6 @@
 /* 护眼助手 · 休息提醒窗口 —— 视觉精修版
    真圆角悬浮卡片（配合主进程 transparent 窗口），与设置面板同一设计语言
-   主题：深海（默认）/ 暖橙（warm）——由 html[data-theme] 切换 */
+   主题：深海（默认）/ 暖橙（warm）/ 二次元（anime）——由 html[data-theme] 切换 */
 
 :root {
   /* 深海主题（默认） */
@@ -30,6 +30,22 @@ html[data-theme="warm"] {
   --accent-wash: rgba(255,158,66,0.07);
   --accent-glow: rgba(255,158,66,0.35);
   --line: rgba(255,255,255,0.07);
+}
+
+/* 二次元主题（anime）：蓝发鲸娘 —— 星夜靛蓝 + 糖果按钮 */
+html[data-theme="anime"] {
+  --bg: #12162B;
+  --panel: #1B2140;
+  --panel-hi: #242C58;
+  --text: #EEF1FF;
+  --muted: #8E9AC9;
+  --accent: #7C9CFF;
+  --accent-2: #FFB3C8;
+  --accent-soft: rgba(124,156,255,0.16);
+  --accent-line: rgba(124,156,255,0.55);
+  --accent-wash: rgba(124,156,255,0.10);
+  --accent-glow: rgba(124,156,255,0.45);
+  --line: rgba(196,214,255,0.14);
 }
 
 * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -138,4 +154,51 @@ button.ghost:hover { color: var(--accent); }
   .subtitle { font-size: 16px; }
   .countdown { font-size: 88px; }
   button { font-size: 14px; padding: 12px 22px; }
+}
+
+/* ---- 二次元主题（anime）：星点卡片 + 糖果胶囊按钮 ---- */
+
+html[data-theme="anime"] .card {
+  border-color: rgba(196, 214, 255, 0.20);
+  background:
+    radial-gradient(1.3px 1.3px at 30px 28px, rgba(232, 240, 255, 0.5), transparent 60%),
+    radial-gradient(1px 1px at 180px 52px, rgba(255, 179, 200, 0.45), transparent 60%),
+    radial-gradient(1.1px 1.1px at 98px 128px, rgba(178, 204, 255, 0.42), transparent 60%),
+    radial-gradient(120% 90% at 50% -10%, var(--accent-wash), transparent 55%),
+    linear-gradient(180deg, var(--panel-hi), var(--panel));
+  background-size: 240px 170px, 240px 170px, 240px 170px, auto, auto;
+  background-repeat: repeat, repeat, repeat, no-repeat, no-repeat;
+}
+
+html[data-theme="anime"] button {
+  border-radius: 999px;
+  border-color: rgba(196, 214, 255, 0.22);
+  background: linear-gradient(135deg, rgba(124, 156, 255, 0.16), rgba(255, 179, 200, 0.10));
+}
+
+html[data-theme="anime"] button:hover {
+  border-color: var(--accent);
+  color: var(--text);
+  background: linear-gradient(135deg, rgba(124, 156, 255, 0.40), rgba(255, 179, 200, 0.26));
+}
+
+html[data-theme="anime"] button.primary {
+  background: linear-gradient(135deg, var(--accent), var(--accent-2));
+  border-color: transparent;
+  color: #141A33;
+}
+
+html[data-theme="anime"] button.primary:hover {
+  background: linear-gradient(135deg, #90AAFF, #FFC4D5);
+  color: #141A33;
+}
+
+html[data-theme="anime"] button.ghost {
+  background: transparent;
+  border-color: transparent;
+}
+
+html[data-theme="anime"] button.ghost:hover {
+  background: transparent;
+  color: var(--accent);
 }

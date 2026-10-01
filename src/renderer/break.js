@@ -2,7 +2,7 @@
 
 // 休息提醒窗口交互：alerting（该休息了）/ resting（休息中）两态渲染
 
-// 主题：跟随设置（deepsea 深海 / warm 暖橙），加载时应用
+// 主题：跟随设置（deepsea 深海 / warm 暖橙 / anime 二次元），加载时应用
 window.eyeGuard
   .getSettings()
   .then((s) => {

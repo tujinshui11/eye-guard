@@ -1,4 +1,4 @@
-/* 护眼助手 · 设置面板 v2 —— 深海主题（默认）+ 暖橙主题（可切换）
+/* 护眼助手 · 设置面板 v2 —— 深海（默认）/ 暖橙 / 二次元（可切换）
    设计语言：深海夜色底、卡片分层、品牌蓝→青渐变；色温滑轨暖↔冷全线可视 */
 
 :root {
@@ -34,6 +34,24 @@ html[data-theme="warm"] {
   --line: rgba(255, 255, 255, 0.07);
   --glow-a: rgba(255, 158, 66, 0.07);
   --glow-b: rgba(255, 200, 120, 0.05);
+}
+
+/* 二次元（anime）：蓝发鲸娘 —— 星夜靛蓝底、长春花蓝/樱粉糖果色、白蕾丝描边 */
+html[data-theme="anime"] {
+  --bg: #12162B;
+  --panel: #1B2140;
+  --panel-hi: #242C58;
+  --text: #EEF1FF;
+  --muted: #8E9AC9;
+  --accent: #7C9CFF;
+  --accent-2: #FFB3C8;
+  --accent-soft: rgba(124, 156, 255, 0.16);
+  --accent-line: rgba(124, 156, 255, 0.55);
+  --accent-glow: rgba(124, 156, 255, 0.45);
+  --line: rgba(196, 214, 255, 0.14);
+  --glow-a: rgba(124, 156, 255, 0.16);
+  --glow-b: rgba(255, 179, 200, 0.10);
+  --radius: 16px;
 }
 
 * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -576,3 +594,61 @@ input[type="range"]::-webkit-slider-thumb:hover { transform: scale(1.12); }
 }
 
 .hidden { display: none !important; }
+
+/* ---- 二次元主题（anime）覆盖层 ---- */
+
+/* 星夜：细碎星点平铺 + 靛蓝底（星点为 4 层小径向渐变，220px 循环） */
+html[data-theme="anime"] body {
+  background:
+    radial-gradient(1.4px 1.4px at 22px 34px, rgba(232, 240, 255, 0.85), transparent 60%),
+    radial-gradient(1px 1px at 138px 92px, rgba(255, 179, 200, 0.75), transparent 60%),
+    radial-gradient(1.2px 1.2px at 74px 156px, rgba(232, 240, 255, 0.6), transparent 60%),
+    radial-gradient(1px 1px at 178px 44px, rgba(124, 156, 255, 0.75), transparent 60%),
+    radial-gradient(120% 80% at 50% -10%, var(--glow-a), transparent 55%),
+    radial-gradient(90% 60% at 88% 104%, var(--glow-b), transparent 60%),
+    var(--bg);
+  background-size: 220px 220px, 220px 220px, 220px 220px, 220px 220px, auto, auto;
+  background-repeat: repeat, repeat, repeat, repeat, no-repeat, no-repeat;
+}
+
+/* 鲸尾图标：糖果配色（长春花蓝 → 樱粉），气泡点缀变粉 */
+html[data-theme="anime"] #whaleGrad stop:first-child { stop-color: #9DB7FF; }
+html[data-theme="anime"] #whaleGrad stop:last-child { stop-color: #FFB3C8; }
+html[data-theme="anime"] .whale circle { fill: #FFC4DC; }
+
+/* 糖果胶囊按钮：长春花蓝 → 樱粉渐变 */
+html[data-theme="anime"] .presets button {
+  border-radius: 999px;
+  border-color: rgba(196, 214, 255, 0.22);
+  background: linear-gradient(135deg, rgba(124, 156, 255, 0.18), rgba(255, 179, 200, 0.12));
+}
+
+html[data-theme="anime"] .presets button:hover {
+  border-color: var(--accent);
+  color: var(--text);
+  background: linear-gradient(135deg, rgba(124, 156, 255, 0.42), rgba(255, 179, 200, 0.30));
+  box-shadow: 0 0 14px rgba(124, 156, 255, 0.30);
+}
+
+html[data-theme="anime"] .theme-switch { border-radius: 999px; }
+
+html[data-theme="anime"] .theme-btn.active {
+  background: linear-gradient(135deg, var(--accent), var(--accent-2));
+  color: #141A33;
+}
+
+html[data-theme="anime"] .mode-chip {
+  border-radius: 14px;
+  border-color: rgba(196, 214, 255, 0.18);
+  background: linear-gradient(160deg, rgba(124, 156, 255, 0.12), rgba(255, 179, 200, 0.06));
+}
+
+html[data-theme="anime"] .mode-chip:hover {
+  background: linear-gradient(160deg, rgba(124, 156, 255, 0.26), rgba(255, 179, 200, 0.16));
+}
+
+html[data-theme="anime"] .mode-chip.active {
+  border-color: var(--accent);
+  background: linear-gradient(160deg, rgba(124, 156, 255, 0.34), rgba(255, 179, 200, 0.20));
+  box-shadow: 0 0 0 1px var(--accent), 0 4px 18px rgba(124, 156, 255, 0.28);
+}

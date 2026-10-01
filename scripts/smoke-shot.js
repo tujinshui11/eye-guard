@@ -1,13 +1,14 @@
 'use strict';
 
 // 开发辅助脚本：无头启动设置面板并截图（跳过托盘/单实例逻辑，仅验证渲染与 preload 链路）
-// 用法：npx electron scripts/smoke-shot.js [输出路径.png] [主题 deepsea|warm] [scroll: top|bottom]
+// 用法：npx electron scripts/smoke-shot.js [输出路径.png] [主题 deepsea|warm|anime] [scroll: top|bottom]
 const { app, BrowserWindow, ipcMain } = require('electron');
 const path = require('path');
 const fs = require('fs');
 
 const out = process.argv[2] || path.join(__dirname, '..', '.rivet', 'scratch', 'smoke', 'ui.png');
-const theme = process.argv[3] === 'warm' ? 'warm' : 'deepsea';
+const THEMES = ['deepsea', 'warm', 'anime'];
+const theme = THEMES.includes(process.argv[3]) ? process.argv[3] : 'deepsea';
 const scroll = process.argv[4] === 'bottom' ? 'bottom' : 'top';
 
 const { MODES } = require('../src/main/modes');

@@ -3,7 +3,7 @@
 // 建议卡片窗口交互：调度询问（schedule）/ 感光提醒（ambient）共用
 // payload: { title, body, modeName, kind: 'schedule'|'ambient' }
 
-// 主题：跟随设置（deepsea 深海 / warm 暖橙），加载时应用
+// 主题：跟随设置（deepsea 深海 / warm 暖橙 / anime 二次元），加载时应用
 window.eyeGuard
   .getSettings()
   .then((s) => {
