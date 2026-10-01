@@ -21,6 +21,8 @@ jobs:
           workspaces: src-tauri
       - name: cargo test
         run: cargo test --manifest-path src-tauri/Cargo.toml
+      - name: frontend contract test
+        run: node --test tests/theme.test.js
 
   build:
     needs: [test]
