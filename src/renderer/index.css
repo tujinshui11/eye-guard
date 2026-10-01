@@ -248,15 +248,22 @@ input[type="range"] {
   margin: 6px 0 2px;
 }
 
+/* 小鱼滑钮：fish.svg 蒙版成形、主题色填充（鱼身 + 燕尾 + 镂空眼） */
 input[type="range"]::-webkit-slider-thumb {
   -webkit-appearance: none;
   appearance: none;
-  width: 16px;
+  width: 24px;
   height: 16px;
-  border-radius: 50%;
-  background: #fff;
-  border: 2px solid var(--accent);
-  box-shadow: 0 0 0 4px var(--accent-soft), 0 2px 8px rgba(0, 0, 0, 0.4);
+  border: 0;
+  background-color: var(--accent);
+  -webkit-mask-image: url("fish.svg");
+  -webkit-mask-repeat: no-repeat;
+  -webkit-mask-position: center;
+  -webkit-mask-size: contain;
+  mask-image: url("fish.svg");
+  mask-repeat: no-repeat;
+  mask-position: center;
+  mask-size: contain;
   cursor: pointer;
   transition: transform 0.12s;
 }
@@ -651,4 +658,28 @@ html[data-theme="anime"] .mode-chip.active {
   border-color: var(--accent);
   background: linear-gradient(160deg, rgba(124, 156, 255, 0.34), rgba(255, 179, 200, 0.20));
   box-shadow: 0 0 0 1px var(--accent), 0 4px 18px rgba(124, 156, 255, 0.28);
+}
+
+/* 小鱼滑钮：二次元主题用糖果渐变填充 */
+html[data-theme="anime"] input[type="range"]::-webkit-slider-thumb {
+  background: linear-gradient(135deg, var(--accent), var(--accent-2));
+}
+
+/* ---- 角色立绘（仅二次元主题）：面板底部 ---- */
+
+.mascot { display: none; }
+
+html[data-theme="anime"] .mascot {
+  display: flex;
+  justify-content: center;
+  padding: 10px 0 2px;
+  pointer-events: none;
+  user-select: none;
+}
+
+html[data-theme="anime"] .mascot img {
+  width: 228px;
+  max-width: 66%;
+  height: auto;
+  filter: drop-shadow(0 12px 26px rgba(124, 156, 255, 0.30));
 }
