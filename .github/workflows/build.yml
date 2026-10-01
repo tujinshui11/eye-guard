@@ -1,0 +1,44 @@
+name: build
+
+on:
+  push:
+    branches: [master, rust]
+    tags: ["v*"]
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
+      - name: cargo test
+        run: cargo test --manifest-path src-tauri/Cargo.toml
+
+  build:
+    needs: [test]
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
+      # W1：验证 release 编译（全量打包 NSIS/zip 在 W5 经 tauri-action 接入）
+      - name: build release
+        run: cargo build --release --manifest-path src-tauri/Cargo.toml
+      - name: upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: eye-guard-windows-preview
+          path: src-tauri/target/release/eye-guard.exe
+          if-no-files-found: error
+
+  # W5 接入：tag v* 时经 tauri-action 发布 Release（NSIS + 便携 zip）
