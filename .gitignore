@@ -12,3 +12,4 @@ out/
 Thumbs.db
 Desktop.ini
 *.log
+vendor/

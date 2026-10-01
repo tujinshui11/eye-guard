@@ -10,6 +10,7 @@
 // koffi 原生模块由 packager 默认 asar.unpack（**/*.node）自动解包。
 
 const path = require('path');
+const fs = require('fs');
 
 // @electron/packager 为 ESM 包，函数是命名导出 packager
 const packager = require('@electron/packager').packager;
@@ -25,6 +26,10 @@ const IGNORE = [
   /^[/\\]\.git([/\\]|$)/
 ];
 
+// 离线优先：vendor/ 内若备有对应版本的 electron zip，则完全跳过网络
+// （本环境对 GitHub 连接时通时断——@electron/get 的校验文件下载也会超时）
+const vendorZipDir = path.join(SRC, 'vendor');
+
 packager({
   dir: SRC,
   name: '护眼助手',
@@ -34,6 +39,7 @@ packager({
   icon: path.join(SRC, 'assets', 'icon.ico'),
   overwrite: true,
   prune: true,
+  electronZipDir: fs.existsSync(vendorZipDir) ? vendorZipDir : undefined,
   ignore: IGNORE
 })
   .then((appPaths) => {
