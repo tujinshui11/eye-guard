@@ -1,6 +1,6 @@
 'use strict';
 
-const { app, BrowserWindow, ipcMain, screen } = require('electron');
+const { app, BrowserWindow, ipcMain, screen, session, powerMonitor } = require('electron');
 const path = require('path');
 const { DisplayController } = require('./display');
 const { SettingsStore } = require('./settings');
@@ -8,6 +8,8 @@ const { BrightnessOverlay } = require('./overlay');
 const { registerHotkeys, unregisterAll } = require('./hotkeys');
 const { BreakTimer } = require('./breakTimer');
 const { MODES, getMode } = require('./modes');
+const { resolveDueEntry, alignStartup, markFired } = require('./scheduler');
+const { LumaAnalyzer } = require('./ambient');
 
 // ---- 单实例锁：护眼工具必须常驻唯一实例 ----
 const gotTheLock = app.requestSingleInstanceLock();
@@ -23,6 +25,15 @@ if (!gotTheLock) {
   let breakTimer = null;
   let breakWindow = null;
   let breakTickTimer = null;
+  let scheduleTickTimer = null;
+  let proposeWindow = null;
+  let proposeTimer = null;
+  let proposePayload = null;
+  let cameraWindow = null;
+  let ambientTimer = null;
+  let ambientAnalyzer = null;
+  let ambientFailures = 0;
+  let ambientStoppedReason = null;
   let quitting = false;
 
   // ==== 窗口 ====
@@ -371,6 +382,259 @@ if (!gotTheLock) {
     return ok;
   }
 
+  // ==== 建议卡片（调度询问 / 感光提醒共用窗口） ====
+
+  function showPropose(payload) {
+    proposePayload = payload;
+    if (!proposeWindow || proposeWindow.isDestroyed()) {
+      proposeWindow = new BrowserWindow({
+        width: 400,
+        height: 190,
+        frame: false,
+        transparent: true,
+        backgroundColor: '#00000000',
+        skipTaskbar: true,
+        alwaysOnTop: true,
+        resizable: false,
+        minimizable: false,
+        maximizable: false,
+        fullscreenable: false,
+        show: false,
+        webPreferences: {
+          preload: path.join(__dirname, '..', 'preload.js'),
+          contextIsolation: true,
+          nodeIntegration: false,
+          sandbox: true
+        }
+      });
+      proposeWindow.setAlwaysOnTop(true, 'screen-saver');
+      proposeWindow.loadFile(path.join(__dirname, '..', 'renderer', 'propose.html'));
+      proposeWindow.once('ready-to-show', () => {
+        if (proposeWindow && !proposeWindow.isDestroyed()) proposeWindow.showInactive();
+      });
+      proposeWindow.webContents.on('did-finish-load', () => {
+        if (proposeWindow && !proposeWindow.isDestroyed() && proposePayload) {
+          proposeWindow.webContents.send('propose:update', proposePayload);
+        }
+      });
+      proposeWindow.on('closed', () => {
+        proposeWindow = null;
+      });
+    } else {
+      proposeWindow.webContents.send('propose:update', payload);
+    }
+    // 60 秒无操作自动关闭（视为忽略）
+    if (proposeTimer) clearTimeout(proposeTimer);
+    proposeTimer = setTimeout(() => resolvePropose('timeout'), 60 * 1000);
+    console.log('[propose] shown: ' + payload.title);
+  }
+
+  /** 卡片交互结果：apply=切换；其余（dismiss/mute/timeout）不应用。窗口已消费即防重 */
+  function resolvePropose(action) {
+    if (proposeTimer) {
+      clearTimeout(proposeTimer);
+      proposeTimer = null;
+    }
+    const payload = proposePayload;
+    proposePayload = null;
+    if (proposeWindow && !proposeWindow.isDestroyed()) proposeWindow.close();
+    if (action === 'apply' && payload && payload.modeId) {
+      const r = applyMode(payload.modeId);
+      console.log('[propose] apply ' + payload.modeId + ' → ' + JSON.stringify(r && r.ok));
+    } else {
+      console.log('[propose] resolved: ' + action);
+    }
+    return true;
+  }
+
+  // ==== 时间调度 ====
+
+  function handleScheduleEntry(entry, now) {
+    const mode = getMode(entry.modeId);
+    if (!mode) return;
+    // 触发即持久化 lastFired（本窗口消费，防重跨重启）
+    const cur = settings.get().schedule;
+    const nextFired = markFired(cur.lastFired, entry.id, now);
+    settings.save({ schedule: { lastFired: nextFired } });
+
+    if (entry.action === 'ask') {
+      showPropose({
+        kind: 'schedule',
+        modeId: entry.modeId,
+        title: '现在是 ' + entry.time,
+        body: '切换到「' + mode.name + ' ' + mode.kelvin + 'K」吗？'
+      });
+    } else {
+      const r = applyMode(entry.modeId);
+      console.log('[schedule] auto → ' + entry.modeId + ' ok=' + (r && r.ok));
+      notifyBalloon('已切换到「' + mode.name + '」');
+    }
+  }
+
+  function checkSchedule(now) {
+    if (!settings) return;
+    const sch = settings.get().schedule;
+    if (!sch || !sch.enabled || !Array.isArray(sch.entries)) return;
+    const entry = resolveDueEntry(sch.entries, now, sch.lastFired || {});
+    if (entry) handleScheduleEntry(entry, now);
+  }
+
+  /** 启动 / 唤醒对齐：今日已过的最新 auto 条目未触发 → 静默应用（ask 错过不补） */
+  function alignScheduleOnBoot(reason) {
+    if (!settings) return;
+    const sch = settings.get().schedule;
+    if (!sch || !sch.enabled || !Array.isArray(sch.entries)) return;
+    const now = Date.now();
+    const entry = alignStartup(sch.entries, now, sch.lastFired || {});
+    if (!entry) return;
+    const mode = getMode(entry.modeId);
+    if (!mode) return;
+    const nextFired = markFired(sch.lastFired || {}, entry.id, now);
+    settings.save({ schedule: { lastFired: nextFired } });
+    applyMode(entry.modeId, { silent: true });
+    console.log('[schedule] 对齐（' + reason + '）：' + entry.time + ' → ' + entry.modeId);
+  }
+
+  function initScheduler() {
+    scheduleTickTimer = setInterval(() => checkSchedule(Date.now()), 30 * 1000);
+    console.log('[schedule] tick 已启动（30s）');
+  }
+
+  // ==== 感光监测（摄像头短开测光，默认关闭） ====
+
+  function ensureCameraWindow() {
+    if (cameraWindow && !cameraWindow.isDestroyed()) return cameraWindow;
+    cameraWindow = new BrowserWindow({
+      show: false,
+      webPreferences: {
+        contextIsolation: true,
+        nodeIntegration: false,
+        sandbox: true,
+        backgroundThrottling: false
+      }
+    });
+    cameraWindow.loadFile(path.join(__dirname, '..', 'renderer', 'camera.html'));
+    cameraWindow.on('closed', () => {
+      cameraWindow = null;
+    });
+    console.log('[ambient] 测光窗口已创建（隐藏）');
+    return cameraWindow;
+  }
+
+  async function sampleAmbient() {
+    const win = ensureCameraWindow();
+    try {
+      const res = await win.webContents.executeJavaScript('window.__sample()');
+      if (res && typeof res === 'object' && typeof res.ok === 'boolean') return res;
+      return { ok: false, error: '无效采样返回' };
+    } catch (err) {
+      return { ok: false, error: err.message };
+    }
+  }
+
+  function getAmbientState() {
+    const cfg = settings ? settings.get().ambient : null;
+    return {
+      enabled: cfg ? !!cfg.enabled : false,
+      running: !!ambientTimer,
+      failures: ambientFailures,
+      stoppedReason: ambientStoppedReason,
+      analyzer: ambientAnalyzer ? ambientAnalyzer.getState() : null
+    };
+  }
+
+  function broadcastAmbientState() {
+    const st = getAmbientState();
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      mainWindow.webContents.send('ambient:state', st);
+    }
+  }
+
+  function stopAmbientMonitor(reason) {
+    if (ambientTimer) {
+      clearInterval(ambientTimer);
+      ambientTimer = null;
+    }
+    if (reason) ambientStoppedReason = reason;
+    if (cameraWindow && !cameraWindow.isDestroyed()) {
+      cameraWindow.close();
+      cameraWindow = null;
+    }
+    broadcastAmbientState();
+    if (reason) console.warn('[ambient] monitor stopped: ' + reason);
+  }
+
+  async function sampleAmbientOnce() {
+    if (!ambientTimer) return;
+    const res = await sampleAmbient();
+    if (!res.ok) {
+      ambientFailures++;
+      console.warn('[ambient] 采样失败 ' + ambientFailures + '：' + res.error);
+      if (ambientFailures >= 2) {
+        stopAmbientMonitor('连续采样失败：' + res.error);
+      }
+      return;
+    }
+    ambientFailures = 0;
+    if (!ambientAnalyzer) return;
+    const evt = ambientAnalyzer.feed(res.luma, Date.now());
+    if (evt === 'darker') handleAmbientDarker();
+    broadcastAmbientState();
+  }
+
+  function handleAmbientDarker() {
+    const cfg = settings ? settings.get().ambient : null;
+    if (!cfg) return;
+    const modeId = cfg.autoModeId || 'night';
+    const mode = getMode(modeId);
+    if (!mode) return;
+    console.log('[ambient] 环境变暗（smooth=' + (ambientAnalyzer ? ambientAnalyzer.getState().smooth.toFixed(1) : '?') +
+      ' baseline=' + (ambientAnalyzer ? ambientAnalyzer.getState().baseline.toFixed(1) : '?') + '）');
+    if (cfg.action === 'auto') {
+      applyMode(modeId);
+      notifyBalloon('光线变暗，已切换到「' + mode.name + '」');
+    } else {
+      showPropose({
+        kind: 'ambient',
+        modeId,
+        title: '环境光线变暗了',
+        body: '切换到「' + mode.name + ' ' + mode.kelvin + 'K」吗？'
+      });
+    }
+  }
+
+  function startAmbientMonitor() {
+    const cfg = settings.get().ambient || {};
+    stopAmbientMonitor(null);
+    ambientStoppedReason = null;
+    ambientFailures = 0;
+    if (!cfg.enabled) {
+      console.log('[ambient] 未启用（默认关闭）');
+      return;
+    }
+    ambientAnalyzer = new LumaAnalyzer({
+      dropThresholdPercent: cfg.dropThresholdPercent || 35,
+      cooldownMs: (cfg.cooldownMinutes || 15) * 60 * 1000
+    });
+    ensureCameraWindow();
+    const intervalMs = Math.max(30, Math.min(300, cfg.intervalSeconds || 60)) * 1000;
+    ambientTimer = setInterval(() => sampleAmbientOnce(), intervalMs);
+    setTimeout(() => sampleAmbientOnce(), 3000); // 首采延迟等窗口就绪
+    console.log('[ambient] monitor started, interval=' + intervalMs + 'ms');
+    broadcastAmbientState();
+  }
+
+  /** 托盘气泡（尽力而为；不支持则静默） */
+  function notifyBalloon(content) {
+    if (tray && !tray.isDestroyed()) {
+      try {
+        tray.displayBalloon({ title: '护眼助手', content });
+      } catch {
+        /* 平台不支持，忽略 */
+      }
+    }
+  }
+
   // ==== 托盘聚合操作 ====
 
   const trayActions = {
@@ -453,6 +717,11 @@ if (!gotTheLock) {
       }
       console.log('[break] 配置已更新并联动');
     }
+
+    // 联动：ambient 配置变更 → 重启感光监测（内部幂等：先停再按需启）
+    if (clean.ambient) {
+      startAmbientMonitor('settings');
+    }
     return next;
   });
 
@@ -487,10 +756,23 @@ if (!gotTheLock) {
     }
   });
 
+  ipcMain.handle('propose:action', (e, name) => {
+    resolvePropose(String(name || 'dismiss'));
+    return true;
+  });
+
+  ipcMain.handle('ambient:get-state', () => getAmbientState());
+
   // ==== 启动 ====
 
   app.whenReady().then(() => {
     console.log('[boot] app ready');
+    // 权限闸门（fail-closed）：仅放行 media（测光窗口 getUserMedia），其余一律拒绝
+    session.defaultSession.setPermissionRequestHandler((wc, permission, callback) => {
+      callback(permission === 'media');
+    });
+    session.defaultSession.setPermissionCheckHandler((wc, permission) => permission === 'media');
+
     initSettings();
     initDisplay();
     overlay = new BrightnessOverlay();
@@ -506,6 +788,17 @@ if (!gotTheLock) {
 
     applyStartupState();
     initBreakSystem();
+    initScheduler();
+    alignScheduleOnBoot('boot');
+    startAmbientMonitor('boot');
+
+    // 睡眠唤醒 → 调度对齐（错过窗口的 auto 补应用；ask 不补弹）
+    powerMonitor.on('resume', () => {
+      console.log('[boot] system resumed');
+      alignScheduleOnBoot('resume');
+      // 唤醒后重启感光监测（环境可能已变，基线重新积累）
+      if (ambientTimer) startAmbientMonitor('resume');
+    });
 
     // 全局热键：Control+Alt+↑/↓ 色温 ±200K
     const hk = registerHotkeys(
@@ -541,6 +834,15 @@ if (!gotTheLock) {
     if (breakTickTimer) {
       clearInterval(breakTickTimer);
       breakTickTimer = null;
+    }
+    if (scheduleTickTimer) {
+      clearInterval(scheduleTickTimer);
+      scheduleTickTimer = null;
+    }
+    stopAmbientMonitor('quit');
+    if (proposeTimer) {
+      clearTimeout(proposeTimer);
+      proposeTimer = null;
     }
     hideBreakWindow();
     if (overlay) overlay.dispose();

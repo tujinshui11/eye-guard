@@ -21,7 +21,26 @@ const DEFAULTS = {
   breaks: { enabled: true, workSeconds: 1200, breakSeconds: 20, style: 'gentle' },
   hotkeys: { tempUp: 'Control+Alt+Up', tempDown: 'Control+Alt+Down' },
   autoLaunch: false,
-  pausedUntil: null
+  pausedUntil: null,
+  // v2：时间调度（default 三条示例；enabled 默认关，避免突然打扰）
+  schedule: {
+    enabled: false,
+    entries: [
+      { id: 's1', time: '09:00', modeId: 'office', action: 'auto', enabled: true },
+      { id: 's2', time: '18:00', modeId: 'evening', action: 'ask', enabled: true },
+      { id: 's3', time: '22:00', modeId: 'night', action: 'auto', enabled: true }
+    ],
+    lastFired: {}
+  },
+  // v2：感光监测（默认关闭；开启后摄像头短开测光，仅本机计算亮度，不保存不传输）
+  ambient: {
+    enabled: false,
+    intervalSeconds: 60,
+    dropThresholdPercent: 35,
+    action: 'notify',
+    autoModeId: 'night',
+    cooldownMinutes: 15
+  }
 };
 
 function isPlainObject(v) {

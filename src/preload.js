@@ -22,6 +22,16 @@ contextBridge.exposeInMainWorld('eyeGuard', {
   // 休息提醒
   getBreakState: () => ipcRenderer.invoke('break:get-state'),
   breakAction: (name) => ipcRenderer.invoke('break:action', name),
+  // 建议卡片（v2：时间调度询问 / 感光提醒共用）
+  proposeAction: (name) => ipcRenderer.invoke('propose:action', name),
+  onPropose: (cb) => {
+    ipcRenderer.on('propose:update', (e, payload) => cb(payload));
+  },
+  // 感光监测状态（v2）
+  getAmbientState: () => ipcRenderer.invoke('ambient:get-state'),
+  onAmbientState: (cb) => {
+    ipcRenderer.on('ambient:state', (e, st) => cb(st));
+  },
   // 主进程 → 渲染进程广播
   onBreakUpdate: (cb) => {
     ipcRenderer.on('break:update', (e, state) => cb(state));

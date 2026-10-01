@@ -102,6 +102,57 @@
 
     <section class="card">
       <div class="card-head">
+        <h2>时间调度</h2>
+        <label class="switch mini">
+          <input type="checkbox" id="schedule-enabled" />
+          <span>启用</span>
+        </label>
+      </div>
+      <p class="hint">到点自动切换，或弹卡片询问（默认关闭）</p>
+      <div id="schedule-list" class="schedule-list"></div>
+      <div class="presets">
+        <button id="schedule-add">＋ 添加条目</button>
+      </div>
+      <p id="schedule-note" class="note hidden"></p>
+    </section>
+
+    <section class="card">
+      <div class="card-head">
+        <h2>感光监测</h2>
+        <label class="switch mini">
+          <input type="checkbox" id="ambient-enabled" />
+          <span>启用</span>
+        </label>
+      </div>
+      <p class="hint">环境光线变暗时提醒或自动切换（默认关闭）</p>
+      <details class="advanced">
+        <summary>高级设置</summary>
+        <div class="field-row">
+          <label class="field">采样间隔
+            <input type="number" id="ambient-interval" min="30" max="300" step="10" value="60" /> 秒
+          </label>
+          <label class="field">触发阈值
+            <input type="number" id="ambient-threshold" min="10" max="80" step="5" value="35" /> %
+          </label>
+        </div>
+        <div class="field-row">
+          <label class="field">行为
+            <select id="ambient-action">
+              <option value="notify">弹卡询问</option>
+              <option value="auto">自动切换</option>
+            </select>
+          </label>
+          <label class="field">切换为
+            <select id="ambient-mode"></select>
+          </label>
+        </div>
+      </details>
+      <p id="ambient-status" class="note muted-line">未启用</p>
+      <p class="privacy">隐私说明：测光时摄像头短暂工作（指示灯约 1 秒），画面仅用于本机计算亮度数值，不保存、不传输。</p>
+    </section>
+
+    <section class="card">
+      <div class="card-head">
         <h2>通用</h2>
       </div>
       <div class="field-row">

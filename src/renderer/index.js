@@ -24,6 +24,20 @@ const breakNote = $('break-note');
 
 const autoLaunch = $('auto-launch');
 
+// 时间调度
+const scheduleEnabled = $('schedule-enabled');
+const scheduleList = $('schedule-list');
+const scheduleAdd = $('schedule-add');
+const scheduleNote = $('schedule-note');
+
+// 感光监测
+const ambientEnabled = $('ambient-enabled');
+const ambientInterval = $('ambient-interval');
+const ambientThreshold = $('ambient-threshold');
+const ambientAction = $('ambient-action');
+const ambientMode = $('ambient-mode');
+const ambientStatus = $('ambient-status');
+
 // 模式色点（与各自色温语义对应：暖 → 冷）
 const MODE_SWATCH = {
   natural: '#e8ecf8',
@@ -298,6 +312,165 @@ autoLaunch.addEventListener('change', async () => {
   }
 });
 
+// ---- 时间调度 ----
+
+let settingsCache = null;
+
+async function saveSchedule(patch) {
+  try {
+    const next = await window.eyeGuard.updateSettings({ schedule: patch });
+    if (next) settingsCache = next;
+    renderSchedule();
+  } catch (err) {
+    showNote(scheduleNote, '保存失败：' + err.message);
+    setTimeout(() => showNote(scheduleNote, ''), 2600);
+  }
+}
+
+function currentEntries() {
+  const sch = (settingsCache && settingsCache.schedule) || { entries: [] };
+  return JSON.parse(JSON.stringify(sch.entries || []));
+}
+
+function renderSchedule() {
+  const sch = (settingsCache && settingsCache.schedule) || { enabled: false, entries: [] };
+  scheduleEnabled.checked = !!sch.enabled;
+  const entries = sch.entries || [];
+
+  scheduleList.innerHTML = '';
+  if (!entries.length) {
+    const empty = document.createElement('p');
+    empty.className = 'hint';
+    empty.textContent = '暂无条目，点下方按钮添加';
+    scheduleList.appendChild(empty);
+    return;
+  }
+
+  entries.forEach((e, idx) => {
+    const row = document.createElement('div');
+    row.className = 'schedule-row' + (e.enabled === false ? ' off' : '');
+
+    const time = document.createElement('input');
+    time.type = 'time';
+    time.value = e.time || '09:00';
+    time.addEventListener('change', () => {
+      const list = currentEntries();
+      list[idx].time = time.value;
+      saveSchedule({ entries: list });
+    });
+
+    const modeSel = document.createElement('select');
+    for (const m of modesCache) {
+      const opt = document.createElement('option');
+      opt.value = m.id;
+      opt.textContent = m.name;
+      if (m.id === e.modeId) opt.selected = true;
+      modeSel.appendChild(opt);
+    }
+    modeSel.addEventListener('change', () => {
+      const list = currentEntries();
+      list[idx].modeId = modeSel.value;
+      saveSchedule({ entries: list });
+    });
+
+    const actionSel = document.createElement('select');
+    for (const [v, label] of [['auto', '自动'], ['ask', '询问']]) {
+      const opt = document.createElement('option');
+      opt.value = v;
+      opt.textContent = label;
+      if (v === (e.action || 'auto')) opt.selected = true;
+      actionSel.appendChild(opt);
+    }
+    actionSel.addEventListener('change', () => {
+      const list = currentEntries();
+      list[idx].action = actionSel.value;
+      saveSchedule({ entries: list });
+    });
+
+    const toggle = document.createElement('input');
+    toggle.type = 'checkbox';
+    toggle.className = 'row-toggle';
+    toggle.checked = e.enabled !== false;
+    toggle.title = '启用此条目';
+    toggle.addEventListener('change', () => {
+      const list = currentEntries();
+      list[idx].enabled = toggle.checked;
+      saveSchedule({ entries: list });
+    });
+
+    const del = document.createElement('button');
+    del.className = 'row-del';
+    del.textContent = '✕';
+    del.title = '删除此条目';
+    del.addEventListener('click', () => {
+      const list = currentEntries();
+      list.splice(idx, 1);
+      saveSchedule({ entries: list });
+    });
+
+    row.append(time, modeSel, actionSel, toggle, del);
+    scheduleList.appendChild(row);
+  });
+}
+
+scheduleEnabled.addEventListener('change', () => {
+  saveSchedule({ enabled: scheduleEnabled.checked });
+});
+
+scheduleAdd.addEventListener('click', () => {
+  const list = currentEntries();
+  const id = 's' + Date.now().toString(36);
+  list.push({ id, time: '12:00', modeId: 'reading', action: 'ask', enabled: true });
+  saveSchedule({ entries: list });
+});
+
+// ---- 感光监测 ----
+
+function saveAmbient(patch) {
+  window.eyeGuard.updateSettings({ ambient: patch }).catch((err) => {
+    console.warn('[ui] ambient 保存失败:', err.message);
+  });
+}
+
+function renderAmbientState(st) {
+  if (!st) return;
+  if (!st.enabled) {
+    ambientStatus.textContent = '未启用';
+    return;
+  }
+  if (st.running) {
+    const a = st.analyzer || {};
+    const base = typeof a.baseline === 'number' && a.baseline > 0 ? Math.round(a.baseline) : '…';
+    ambientStatus.textContent = '监测中 · 基线亮度 ' + base + ' · 样本 ' + (a.samples || 0);
+  } else if (st.stoppedReason) {
+    ambientStatus.textContent = '已停止：' + st.stoppedReason;
+  } else {
+    ambientStatus.textContent = '已启用（等待采样）';
+  }
+}
+
+ambientEnabled.addEventListener('change', () => {
+  saveAmbient({ enabled: ambientEnabled.checked });
+});
+ambientInterval.addEventListener('change', () => {
+  const v = Math.max(30, Math.min(300, Number(ambientInterval.value) || 60));
+  ambientInterval.value = String(v);
+  saveAmbient({ intervalSeconds: v });
+});
+ambientThreshold.addEventListener('change', () => {
+  const v = Math.max(10, Math.min(80, Number(ambientThreshold.value) || 35));
+  ambientThreshold.value = String(v);
+  saveAmbient({ dropThresholdPercent: v });
+});
+ambientAction.addEventListener('change', () => {
+  saveAmbient({ action: ambientAction.value });
+});
+ambientMode.addEventListener('change', () => {
+  saveAmbient({ autoModeId: ambientMode.value });
+});
+
+window.eyeGuard.onAmbientState(renderAmbientState);
+
 // ---- 主进程广播 ----
 
 window.eyeGuard.onDisplayChanged((s) => {
@@ -318,16 +491,18 @@ window.eyeGuard.onBreakUpdate((st) => renderBreakState(st));
 // ---- 启动装载 ----
 
 async function boot() {
-  const [versionR, settingsR, modesR, stateR, autoR, breakR] = await Promise.allSettled([
+  const [versionR, settingsR, modesR, stateR, autoR, breakR, ambientR] = await Promise.allSettled([
     window.eyeGuard.getVersion(),
     window.eyeGuard.getSettings(),
     window.eyeGuard.listModes(),
     window.eyeGuard.getDisplayState(),
     window.eyeGuard.getAutoLaunch(),
-    window.eyeGuard.getBreakState()
+    window.eyeGuard.getBreakState(),
+    window.eyeGuard.getAmbientState()
   ]);
 
   const settings = settingsR.status === 'fulfilled' ? settingsR.value : null;
+  settingsCache = settings;
   applyTheme(settings && settings.theme);
 
   if (versionR.status === 'fulfilled') versionEl.textContent = 'v' + versionR.value;
@@ -337,6 +512,24 @@ async function boot() {
   }
   if (settings && settings.modeId) currentModeId = settings.modeId;
   renderModes();
+
+  // 感光目标模式下拉（排除原色——"变暗切到原色"无意义）
+  ambientMode.innerHTML = '';
+  for (const m of modesCache) {
+    if (m.id === 'natural') continue;
+    const opt = document.createElement('option');
+    opt.value = m.id;
+    opt.textContent = m.name + '（' + m.kelvin + 'K）';
+    ambientMode.appendChild(opt);
+  }
+  if (settings && settings.ambient) {
+    ambientEnabled.checked = !!settings.ambient.enabled;
+    ambientInterval.value = String(settings.ambient.intervalSeconds || 60);
+    ambientThreshold.value = String(settings.ambient.dropThresholdPercent || 35);
+    ambientAction.value = settings.ambient.action || 'notify';
+    if (settings.ambient.autoModeId) ambientMode.value = settings.ambient.autoModeId;
+  }
+  renderSchedule();
 
   if (stateR.status === 'fulfilled' && stateR.value) {
     setTempUI(stateR.value.temperature);
@@ -360,6 +553,8 @@ async function boot() {
   }
 
   if (breakR.status === 'fulfilled') renderBreakState(breakR.value);
+
+  if (ambientR.status === 'fulfilled') renderAmbientState(ambientR.value);
 
   document.activeElement && document.activeElement.blur();
 }
