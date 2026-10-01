@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self' 'unsafe-inline'" />
+  <title>护眼助手</title>
+  <link rel="stylesheet" href="index.css" />
+</head>
+<body>
+  <header>
+    <div class="brand">
+      <h1>护眼助手</h1>
+      <span id="version" class="version"></span>
+    </div>
+    <span id="status" class="status">已启用</span>
+  </header>
+
+  <main>
+    <section>
+      <h2>色温</h2>
+      <input type="range" id="temperature" min="2000" max="6500" step="100" value="4500" disabled />
+      <div class="row">
+        <span class="value"><span id="temperature-value">4500</span> K</span>
+        <span class="hint">6500K = 原色</span>
+      </div>
+    </section>
+
+    <section>
+      <h2>亮度</h2>
+      <input type="range" id="brightness" min="50" max="100" step="1" value="100" disabled />
+      <div class="row">
+        <span class="value"><span id="brightness-value">100</span> %</span>
+        <span class="hint">最低 50%</span>
+      </div>
+    </section>
+
+    <section>
+      <h2>休息提醒</h2>
+      <p class="placeholder">待接入（工作/休息周期与提醒窗口）</p>
+    </section>
+
+    <section>
+      <h2>通用</h2>
+      <p class="placeholder">待接入（开机自启 / 全局热键说明）</p>
+    </section>
+  </main>
+
+  <script src="index.js"></script>
+</body>
+</html>
