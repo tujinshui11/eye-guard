@@ -9,6 +9,17 @@ const fs = require('fs');
 const out = process.argv[2] || path.join(__dirname, '..', '.rivet', 'scratch', 'smoke', 'ui.png');
 
 ipcMain.handle('app:get-version', () => app.getVersion());
+// 与产品同形的只读 IPC（供 UI 回填；无副作用）
+ipcMain.handle('display:get-state', () => ({
+  available: true,
+  enabled: true,
+  temperature: 5500,
+  brightness: 100
+}));
+ipcMain.handle('settings:get', () => ({
+  breaks: { enabled: true, workSeconds: 1200, breakSeconds: 20, style: 'gentle' }
+}));
+ipcMain.handle('app:get-auto-launch', () => ({ openAtLogin: false, args: [] }));
 
 app.whenReady().then(async () => {
   const win = new BrowserWindow({

@@ -15,7 +15,8 @@ const DEFAULTS = {
   temperature: 6500,
   brightness: 100,
   preset: 'off',
-  breaks: { enabled: true, workSeconds: 2400, breakSeconds: 300, style: 'gentle' },
+  // 休息节奏依据 AAO/AOA 20-20-20（调研：docs/eye-parameters-research.md）
+  breaks: { enabled: true, workSeconds: 1200, breakSeconds: 20, style: 'gentle' },
   hotkeys: { tempUp: 'Control+Alt+Up', tempDown: 'Control+Alt+Down' },
   autoLaunch: false,
   pausedUntil: null

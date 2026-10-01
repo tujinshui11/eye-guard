@@ -17,7 +17,7 @@ test('load: 无文件时返回完整默认值', () => {
   const store = new SettingsStore({ dataDir: tmpDir() });
   const data = store.load();
   assert.equal(data.temperature, DEFAULTS.temperature);
-  assert.equal(data.breaks.workSeconds, 2400);
+  assert.equal(data.breaks.workSeconds, 1200); // AAO 20-20-20 对齐（2026-10-01 规格变更）
   assert.equal(data.brightness, 100);
 });
 
@@ -33,13 +33,13 @@ test('load: 部分字段缺失时补默认（深合并）', () => {
   const dir = tmpDir();
   fs.writeFileSync(
     path.join(dir, 'settings.json'),
-    JSON.stringify({ temperature: 4500, breaks: { workSeconds: 1200 } })
+    JSON.stringify({ temperature: 4500, breaks: { workSeconds: 777 } })
   );
   const store = new SettingsStore({ dataDir: dir });
   const data = store.load();
   assert.equal(data.temperature, 4500, '用户值保留');
-  assert.equal(data.breaks.workSeconds, 1200, '用户值保留');
-  assert.equal(data.breaks.breakSeconds, 300, '缺失字段补默认');
+  assert.equal(data.breaks.workSeconds, 777, '用户值保留（与默认值 1200 区分）');
+  assert.equal(data.breaks.breakSeconds, 20, '缺失字段补默认');
   assert.equal(data.brightness, 100, '缺失字段补默认');
 });
 
@@ -64,7 +64,7 @@ test('save: 合并 patch 并落盘（可读回）', () => {
   const raw = JSON.parse(fs.readFileSync(path.join(dir, 'settings.json'), 'utf-8'));
   assert.equal(raw.temperature, 3400);
   assert.equal(raw.breaks.enabled, false);
-  assert.equal(raw.breaks.workSeconds, 2400, '未提供的子字段保留');
+  assert.equal(raw.breaks.workSeconds, 1200, '未提供的子字段保留（默认值）');
 });
 
 test('save: 无临时文件残留（原子写清理）', () => {

@@ -24,9 +24,10 @@
         <span class="hint">6500K = 原色</span>
       </div>
       <div class="presets">
-        <button data-k="4500">办公 4500K</button>
-        <button data-k="3400">健康 3400K</button>
-        <button data-k="2700">夜晚 2700K</button>
+        <button data-k="5500">办公 5500K</button>
+        <button data-k="4500">傍晚 4500K</button>
+        <button data-k="3400">夜晚 3400K</button>
+        <button data-k="2700">深夜 2700K</button>
         <button data-k="6500">关闭</button>
       </div>
       <p id="temp-note" class="note hidden"></p>
@@ -37,7 +38,7 @@
       <input type="range" id="brightness" min="50" max="100" step="1" value="100" />
       <div class="row">
         <span class="value"><span id="brightness-value">100</span> %</span>
-        <span class="hint">最低 50%</span>
+        <span class="hint">匹配环境光 · 最低 50%</span>
       </div>
     </section>
 
@@ -49,11 +50,11 @@
       </label>
       <div class="field-row">
         <label class="field">工作
-          <input type="number" id="break-work" min="1" max="240" step="1" value="40" />
+          <input type="number" id="break-work" min="1" max="240" step="1" value="20" />
           分钟
         </label>
         <label class="field">休息
-          <input type="number" id="break-rest" min="5" max="3600" step="1" value="300" />
+          <input type="number" id="break-rest" min="5" max="3600" step="1" value="20" />
           秒
         </label>
       </div>

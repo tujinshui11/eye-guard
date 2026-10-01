@@ -5,10 +5,16 @@ const path = require('path');
 
 let tray = null;
 
+// 预设档位（依据：docs/eye-parameters-research.md）
+// - 办公 5500K：办公照明 CCT 建议（4000-5500K）上限，白天保留节律信号
+// - 傍晚 4500K：f.lux 昼→夜过渡区间
+// - 夜晚 3400K：f.lux 默认日落值（"卤素灯"色）
+// - 深夜 2700K：睡前档（本机受驱动 50% 规则钳制约 3300K，UI 如实提示）
 const PRESETS = [
-  { name: 'office', label: '办公 4500K', k: 4500 },
-  { name: 'health', label: '健康 3400K', k: 3400 },
-  { name: 'night', label: '夜晚 2700K', k: 2700 },
+  { name: 'office', label: '办公 5500K', k: 5500 },
+  { name: 'evening', label: '傍晚 4500K', k: 4500 },
+  { name: 'night', label: '夜晚 3400K', k: 3400 },
+  { name: 'deepnight', label: '深夜 2700K', k: 2700 },
   { name: 'off', label: '关闭（原色）', k: 6500 }
 ];
 

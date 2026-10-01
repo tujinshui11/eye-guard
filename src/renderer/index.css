@@ -56,9 +56,10 @@ input[type="range"]:disabled { opacity: 0.45; }
 .hint { color: var(--muted); font-size: 11px; }
 .placeholder { color: var(--muted); font-size: 12px; }
 
-.presets { display: flex; gap: 6px; margin-top: 8px; }
+.presets { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
 .presets button {
-  flex: 1;
+  flex: 1 1 calc(33.333% - 4px);
+  min-width: 72px;
   padding: 5px 0;
   font-size: 11px;
   color: var(--text);

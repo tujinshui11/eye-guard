@@ -23,7 +23,7 @@ class BreakTimer {
     this.now = now;
     this.postponeSeconds = postponeSeconds;
     this.onEvent = onEvent || (() => {});
-    this.config = { workSeconds: 2400, breakSeconds: 300 };
+    this.config = { workSeconds: 1200, breakSeconds: 20 }; // 默认对齐 AAO 20-20-20
 
     this.state = 'idle';
     this.phaseEndTs = null;
