@@ -130,6 +130,27 @@ document.getElementById('break-pause').addEventListener('click', async () => {
   }
 });
 
+// ---- 通用：开机自启 ----
+
+const autoLaunch = document.getElementById('auto-launch');
+
+autoLaunch.addEventListener('change', async () => {
+  try {
+    const res = await window.eyeGuard.setAutoLaunch(autoLaunch.checked);
+    if (!res || !res.ok) {
+      // 写入失败 → 复原开关
+      autoLaunch.checked = !autoLaunch.checked;
+      console.warn('开机自启设置失败:', res && res.error);
+    } else if (res.openAtLogin !== autoLaunch.checked) {
+      // 开发模式下回读可能不可靠（注册表已写入但回读 false）——仅记录，不误伤开关
+      console.warn('自启回读与请求不一致（开发模式常见）:', JSON.stringify(res));
+    }
+  } catch (err) {
+    autoLaunch.checked = !autoLaunch.checked;
+    console.warn('开机自启设置失败:', err.message);
+  }
+});
+
 // ---- 启动状态 ----
 
 window.addEventListener('DOMContentLoaded', async () => {
@@ -166,5 +187,17 @@ window.addEventListener('DOMContentLoaded', async () => {
     }
   } catch (err) {
     console.warn('设置读取失败:', err && err.message);
+  }
+
+  try {
+    const al = await window.eyeGuard.getAutoLaunch();
+    autoLaunch.checked = !!(al && al.openAtLogin);
+  } catch (err) {
+    console.warn('自启状态读取失败:', err && err.message);
+  }
+
+  // 防误触：窗口打开时不把键盘焦点留在滑块上（避免方向键/End 直接改值）
+  if (document.activeElement && typeof document.activeElement.blur === 'function') {
+    document.activeElement.blur();
   }
 });

@@ -147,6 +147,27 @@ if (!gotTheLock) {
     return setTemperature(t, { persist: true, preset: settings ? settings.get().preset : 'custom' });
   }
 
+  /** 开机自启（H3：写入后回读校验） */
+  function setAutoLaunch(enabled) {
+    try {
+      app.setLoginItemSettings({
+        openAtLogin: !!enabled,
+        args: ['--hidden']
+      });
+      const check = app.getLoginItemSettings();
+      console.log(
+        '[autoLaunch] 设置 openAtLogin=' + !!enabled +
+        ' | 回读=' + check.openAtLogin +
+        ' | args=' + JSON.stringify(check.args || [])
+      );
+      if (settings) settings.save({ autoLaunch: !!enabled });
+      return { ok: true, openAtLogin: check.openAtLogin, args: check.args || [] };
+    } catch (err) {
+      console.error('[autoLaunch] 设置失败:', err.message);
+      return { ok: false, error: err.message };
+    }
+  }
+
   // ==== 休息提醒 ====
 
   function initBreakSystem() {
@@ -363,6 +384,17 @@ if (!gotTheLock) {
       console.log('[break] 配置已更新并联动');
     }
     return next;
+  });
+
+  ipcMain.handle('app:set-auto-launch', (e, enabled) => setAutoLaunch(enabled));
+
+  ipcMain.handle('app:get-auto-launch', () => {
+    try {
+      const check = app.getLoginItemSettings();
+      return { openAtLogin: check.openAtLogin, args: check.args || [] };
+    } catch (err) {
+      return { openAtLogin: false, args: [], error: err.message };
+    }
   });
 
   ipcMain.handle('break:get-state', () => (breakTimer ? breakTimer.getState() : null));

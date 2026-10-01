@@ -13,6 +13,9 @@ contextBridge.exposeInMainWorld('eyeGuard', {
   // 设置
   getSettings: () => ipcRenderer.invoke('settings:get'),
   updateSettings: (patch) => ipcRenderer.invoke('settings:set', patch),
+  // 开机自启
+  setAutoLaunch: (enabled) => ipcRenderer.invoke('app:set-auto-launch', enabled),
+  getAutoLaunch: () => ipcRenderer.invoke('app:get-auto-launch'),
   // 休息提醒
   getBreakState: () => ipcRenderer.invoke('break:get-state'),
   breakAction: (name) => ipcRenderer.invoke('break:action', name),

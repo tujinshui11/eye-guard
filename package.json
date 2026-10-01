@@ -9,12 +9,14 @@
   "scripts": {
     "start": "electron .",
     "test": "node --test",
-    "selftest": "node scripts/gamma-selftest.js"
+    "selftest": "node scripts/gamma-selftest.js",
+    "package": "node scripts/package.js"
   },
   "dependencies": {
     "koffi": "^3.3.2"
   },
   "devDependencies": {
+    "@electron/packager": "^20.3.0",
     "electron": "44.5.1"
   }
 }
