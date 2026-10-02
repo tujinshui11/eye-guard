@@ -924,3 +924,10 @@ html[data-theme="anime"] .mascot img {
   height: auto;
   filter: drop-shadow(0 12px 26px rgba(124, 156, 255, 0.30));
 }
+
+/* ---- 拖拽区（无边框窗口拖动手势） ----
+   Tauri 仅当 mousedown 的目标元素本身带 data-tauri-drag-region 时才启动拖动；
+   标记元素的子元素需 pointer-events: none 让命中穿透回标记元素——
+   否则点在 logo / 文字上无法拖动（表现为“偶尔拖不动”）。 */
+.nav-brand *,
+.panel-head * { pointer-events: none; }
