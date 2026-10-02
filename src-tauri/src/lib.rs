@@ -4,6 +4,7 @@
 pub mod ambient;
 pub mod break_rt;
 pub mod break_timer;
+pub mod brightness;
 pub mod commands;
 pub mod display;
 pub mod gamma;
@@ -57,6 +58,7 @@ pub fn run() {
             let handle = app.handle().clone();
 
             // 启动状态：亮度恢复（对照 applyStartupState 的 brightness < 100 → setBrightness 分支）
+            // C 方案：走亮度控制器（背光主控 + 黑纱补充），而非旧遮罩直换
             let init_brightness = {
                 let state = handle.state::<state::SharedState>();
                 let st = state.lock().unwrap();
@@ -66,8 +68,15 @@ pub fn run() {
                     .and_then(|v| v.as_u64())
                     .unwrap_or(100)
             };
-            if init_brightness < 100 {
-                overlay::set_overlay_brightness(&handle, init_brightness as f64);
+            {
+                let state = handle.state::<state::SharedState>();
+                let mut st = state.lock().unwrap();
+                let (_outcome, alpha) = st.brightness.apply(init_brightness as u32);
+                st.overlay_brightness = init_brightness as u32;
+                drop(st);
+                if alpha > 0.001 {
+                    overlay::apply_mask_alpha(&handle, alpha);
+                }
             }
 
             // 调度：启动对齐 + 30s tick（含唤醒跳变检测）

@@ -33,45 +33,63 @@ pub(crate) fn apply_mode_with_app(
     silent: bool,
 ) -> Value {
     let state = app.state::<SharedState>();
-    let mut st = state.lock().unwrap();
-    let Some(mode) = get_mode(mode_id) else {
-        return json!({ "ok": false, "error": format!("未知模式：{mode_id}") });
+
+    // 阶段 1（持锁）：色温 + 亮度（C 方案：背光主控 + 黑纱补充）
+    let (mode_name, mode_kelvin, mode_brightness, outcome, effective, mask_alpha) = {
+        let mut st = state.lock().unwrap();
+        let Some(mode) = get_mode(mode_id) else {
+            return json!({ "ok": false, "error": format!("未知模式：{mode_id}") });
+        };
+        let outcome = st.display.apply(mode.kelvin as f64);
+        let effective = st.display.current_temperature;
+        let (_b_outcome, alpha) = st.brightness.apply(mode.brightness);
+        st.overlay_brightness = mode.brightness;
+        (
+            mode.name,
+            mode.kelvin,
+            mode.brightness,
+            outcome,
+            effective,
+            alpha,
+        )
     };
 
-    let outcome = st.display.apply(mode.kelvin as f64);
-    let effective = st.display.current_temperature;
+    // 阶段 2（放锁）：黑纱窗口操作（内部会再取锁，必须在外层锁释放后调用）
+    crate::overlay::apply_mask_alpha(app, mask_alpha);
 
-    if persist {
-        if let Err(e) = st.settings.save(&json!({
-            "enabled": true,
-            "modeId": mode.id,
-            "temperature": effective,
-            "brightness": mode.brightness
-        })) {
-            return json!({ "ok": false, "error": e.to_string() });
+    // 阶段 3（持锁）：持久化 + 广播
+    {
+        let mut st = state.lock().unwrap();
+        if persist {
+            if let Err(e) = st.settings.save(&json!({
+                "enabled": true,
+                "modeId": mode_id,
+                "temperature": effective,
+                "brightness": mode_brightness
+            })) {
+                return json!({ "ok": false, "error": e.to_string() });
+            }
         }
-    }
-
-    if !silent {
-        let _ = app.emit("display:changed", display_payload(&st));
+        if !silent {
+            let _ = app.emit("display:changed", display_payload(&st));
+        }
     }
 
     json!({
         "ok": outcome.ok,
         "mode": {
-            "id": mode.id,
-            "name": mode.name,
-            "kelvin": mode.kelvin,
-            "brightness": mode.brightness
+            "id": mode_id,
+            "name": mode_name,
+            "kelvin": mode_kelvin,
+            "brightness": mode_brightness
         },
         "temperature": effective,
-        "brightness": mode.brightness
+        "brightness": mode_brightness
     })
 }
 
 /// setTemperature 的内部实现（对照 index.js:118）——命令 / 热键 / 托盘微调共用
-pub(crate) fn set_temperature_with_app(app: &AppHandle, kelvin: f64, mode_id: &str) -> Value {
-    let state = app.state::<SharedState>();
+pub(crate) fn set_temperature_with_app(app: &AppHandle, kelvin: f64, mode_id: &str) -> Value {    let state = app.state::<SharedState>();
     let mut st = state.lock().unwrap();
     let n = if kelvin == 0.0 || kelvin.is_nan() {
         6500.0
@@ -161,17 +179,39 @@ pub fn display_set_temperature(app: AppHandle, kelvin: f64) -> Value {
     set_temperature_with_app(&app, kelvin, "custom")
 }
 
-/// 对照 display:set-brightness（index.js:728）→ overlay 遮罩
+/// 对照 display:set-brightness（index.js:728）→ C 方案：背光主控 + 黑纱补充
 #[tauri::command]
 pub fn display_set_brightness(app: AppHandle, brightness: f64) -> Value {
-    let v = crate::overlay::set_overlay_brightness(&app, brightness);
+    let target = brightness.clamp(0.0, 100.0) as u32;
+    let (outcome, alpha) = {
+        let state = app.state::<SharedState>();
+        let mut st = state.lock().unwrap();
+        let (outcome, alpha) = st.brightness.apply(target);
+        st.overlay_brightness = target;
+        (outcome, alpha)
+    };
+    // 黑纱层：由控制器算出的 alpha 驱动（背光承担主量，遮罩只补差额）
+    crate::overlay::apply_mask_alpha(&app, alpha);
     {
         let state = app.state::<SharedState>();
         let mut st = state.lock().unwrap();
-        let _ = st.settings.save(&json!({ "brightness": v, "modeId": "custom" }));
+        let _ = st.settings.save(&json!({ "brightness": target, "modeId": "custom" }));
         let _ = app.emit("display:changed", display_payload(&st));
     }
-    json!({ "ok": true, "brightness": v })
+    let mut res = json!({ "ok": true, "brightness": target });
+    match outcome {
+        crate::brightness::BrightnessOutcome::BacklightOnly { backlight } => {
+            res["backlight"] = json!(backlight);
+        }
+        crate::brightness::BrightnessOutcome::BacklightPlusMask { backlight, mask_alpha } => {
+            res["backlight"] = json!(backlight);
+            res["maskAlpha"] = json!(mask_alpha);
+        }
+        crate::brightness::BrightnessOutcome::MaskOnly { mask_alpha } => {
+            res["maskAlpha"] = json!(mask_alpha);
+        }
+    }
+    res
 }
 
 /// 对照 display:restore（index.js:726）

@@ -3,6 +3,10 @@
 //! 透明全屏窗口 + 点击穿透 + 置顶；亮度经 rgba 遮罩 alpha 实现（不占用 gamma 空间）。
 //! v0.2.2 修复：Tauri 的 eval 不等待页面加载（与 Electron executeJavaScript 语义不同）——
 //! 首次建窗时直接 eval 会丢；新增 on_page_load(Finished) 兜底应用当前亮度。
+//!
+//! C 方案（v0.3.0）：遮罩从「亮度唯一载体」降级为「补充层」——
+//! 背光（WMI）为主控，遮罩只在目标低于背光下限时补足差额。
+//! `apply_mask_alpha` 是新的唯一入口（幂等、无亮度语义，只认 alpha）。
 
 use crate::state::SharedState;
 use serde_json::json;
@@ -72,32 +76,6 @@ fn ensure_overlay_window(app: &AppHandle) -> Option<tauri::WebviewWindow> {
     }
 }
 
-/// 设置亮度（对照 overlay.setBrightness）：clamp 50–100；alpha=(100-b)/100；
-/// alpha≤0.001 → 隐藏；否则 eval setMaskAlpha + show
-pub fn set_overlay_brightness(app: &AppHandle, brightness: f64) -> u32 {
-    let v = brightness.clamp(50.0, 100.0) as u32;
-    let alpha = alpha_for(v);
-
-    {
-        let state = app.state::<SharedState>();
-        let mut st = state.lock().unwrap();
-        st.overlay_brightness = v;
-    }
-
-    if alpha <= 0.001 {
-        if let Some(w) = app.get_webview_window("overlay") {
-            let _ = w.hide();
-        }
-        return v;
-    }
-
-    if let Some(w) = ensure_overlay_window(app) {
-        apply_mask(&w, alpha);
-        let _ = w.show();
-    }
-    v
-}
-
 /// 恢复/隐藏遮罩（供 restore 场景调用——遮罩回到 100%（隐藏））
 pub fn hide_overlay(app: &AppHandle) {
     if let Some(w) = app.get_webview_window("overlay") {
@@ -106,6 +84,24 @@ pub fn hide_overlay(app: &AppHandle) {
     let state = app.state::<SharedState>();
     let mut st = state.lock().unwrap();
     st.overlay_brightness = 100;
+}
+
+/// 直接应用遮罩 alpha（C 方案唯一入口：alpha 由亮度控制器算出，这里不做亮度换算）
+///
+/// - alpha ≤ 0.001 → 隐藏（无遮罩）
+/// - 否则确保窗口存在、应用 alpha、显示
+pub fn apply_mask_alpha(app: &AppHandle, alpha: f64) {
+    let a = alpha.clamp(0.0, 1.0);
+    if a <= 0.001 {
+        if let Some(w) = app.get_webview_window("overlay") {
+            let _ = w.hide();
+        }
+        return;
+    }
+    if let Some(w) = ensure_overlay_window(app) {
+        apply_mask(&w, a);
+        let _ = w.show();
+    }
 }
 
 /// 供 display:changed 载荷的 brightness 值（overlay 接入后）
