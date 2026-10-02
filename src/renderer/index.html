@@ -7,9 +7,9 @@
   <link rel="stylesheet" href="index.css" />
 </head>
 <body class="app-shell">
-  <div class="window">
-    <aside class="nav" data-tauri-drag-region>
-      <div class="nav-brand" data-tauri-drag-region>
+  <div class="window" data-tauri-drag-region="deep">
+    <aside class="nav">
+      <div class="nav-brand">
         <img class="nav-logo" src="icon.png" alt="" draggable="false" />
         <div class="nav-brand-text">
           <h1>埃斯</h1>
@@ -31,10 +31,10 @@
       </div>
     </aside>
 
-    <main data-tauri-drag-region>
+    <main>
       <!-- ======== 显示调节 ======== -->
       <div class="panel active" data-panel="display">
-        <header class="panel-head" data-tauri-drag-region>
+        <header class="panel-head">
           <h2>显示调节</h2>
           <p class="hint">色温与亮度 · 实时生效</p>
         </header>
@@ -74,7 +74,7 @@
 
       <!-- ======== 休息提醒 ======== -->
       <div class="panel" data-panel="rest">
-        <header class="panel-head" data-tauri-drag-region>
+        <header class="panel-head">
           <h2>休息提醒</h2>
           <p class="hint">20-20-20 规则 · 定时放松眼睛</p>
         </header>
@@ -117,7 +117,7 @@
 
       <!-- ======== 自动化 ======== -->
       <div class="panel" data-panel="auto">
-        <header class="panel-head" data-tauri-drag-region>
+        <header class="panel-head">
           <h2>自动化</h2>
           <p class="hint">按场景与时间自动调整 · 色彩敏感应用保护</p>
         </header>
@@ -192,7 +192,7 @@
 
       <!-- ======== 通用 ======== -->
       <div class="panel" data-panel="general">
-        <header class="panel-head" data-tauri-drag-region>
+        <header class="panel-head">
           <h2>通用</h2>
           <p class="hint">外观与系统集成</p>
         </header>
