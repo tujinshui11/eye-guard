@@ -37,6 +37,8 @@ pub struct BrightnessController<I: BacklightIo> {
     backlight_available: Option<bool>,
     /// 最后一次成功写入的背光值（外部变更同步用：读回与它不符 = 用户 Fn 改了）
     pub last_written: Option<u32>,
+    /// 启动时捕获的系统背光原值（退出/恢复原色时还原用）
+    initial_backlight: Option<u32>,
     /// 背光下限（百分比）——低于此值背光不再降，由黑纱补充
     pub backlight_floor: u32,
 }
@@ -47,8 +49,38 @@ impl<I: BacklightIo> BrightnessController<I> {
             io,
             backlight_available: None,
             last_written: None,
+            initial_backlight: None,
             backlight_floor: 20,
         }
+    }
+
+    /// 捕获启动时的背光原值（应用启动时调用一次；已捕获则幂等）
+    ///
+    /// 注意：必须在任何写入之前调用，否则捕获到的是被我们改过的值。
+    pub fn capture_initial(&mut self) {
+        if self.initial_backlight.is_some() {
+            return;
+        }
+        self.initial_backlight = self.io.get();
+    }
+
+    /// 还原背光到启动原值（退出应用 / 「恢复原色」时调用）
+    ///
+    /// - 未捕获原值（无硬件/从未启动过）→ 无操作
+    /// - 当前值已等于原值 → 不重复写（幂等）
+    /// 返回是否执行了写入。
+    pub fn restore_initial(&mut self) -> bool {
+        let Some(initial) = self.initial_backlight else {
+            return false;
+        };
+        if self.io.get() == Some(initial) {
+            return false;
+        }
+        let ok = self.io.set(initial);
+        if ok {
+            self.last_written = Some(initial);
+        }
+        ok
     }
 
     /// 探测背光可用性（读一次即知；结果缓存）
@@ -162,6 +194,8 @@ impl BacklightIo for WmiBacklight {
     }
 }
 
+pub use wmi::{debug_read_brightness, set_brightness_diag};
+
 mod wmi {
     //! WMI 亮度读写（windows crate COM 绑定）
     //!
@@ -176,8 +210,8 @@ mod wmi {
     };
     use windows::Win32::System::Variant::{VARIANT, VT_BSTR, VT_UI1, VT_UI4};
     use windows::Win32::System::Wmi::{
-        IWbemClassObject, IWbemContext, IWbemLocator, IWbemServices, WbemLocator,
-        WBEM_FLAG_FORWARD_ONLY, WBEM_GENERIC_FLAG_TYPE, WBEM_INFINITE,
+        CIM_UINT32, CIM_UINT8, IWbemClassObject, IWbemContext, IWbemLocator, IWbemServices,
+        WbemLocator, WBEM_FLAG_FORWARD_ONLY, WBEM_GENERIC_FLAG_TYPE, WBEM_INFINITE,
     };
 
     const NS: &str = "ROOT\\WMI";
@@ -192,6 +226,27 @@ mod wmi {
             // S_OK / S_FALSE（已初始化，引用计数+1）均需配对 CoUninitialize；
             // RPC_E_CHANGED_MODE 等失败情形不再调用（避免引用计数失衡）
             let hr = unsafe { CoInitializeEx(None, COINIT_MULTITHREADED) };
+            if hr.is_ok() {
+                // 进程级安全初始化（WMI 客户端标准模式；必须先于 CoCreateInstance）
+                // 重复调用会返回 RPC_E_TOO_LATE——忽略即可
+                use windows::Win32::System::Com::{
+                    CoInitializeSecurity, EOAC_NONE, RPC_C_AUTHN_LEVEL_DEFAULT,
+                    RPC_C_IMP_LEVEL_IMPERSONATE,
+                };
+                unsafe {
+                    let _ = CoInitializeSecurity(
+                        None,
+                        -1,
+                        None,
+                        None,
+                        RPC_C_AUTHN_LEVEL_DEFAULT,
+                        RPC_C_IMP_LEVEL_IMPERSONATE,
+                        None,
+                        EOAC_NONE,
+                        None,
+                    );
+                }
+            }
             Self {
                 needs_uninit: hr.is_ok(),
             }
@@ -207,11 +262,19 @@ mod wmi {
     }
 
     /// 连接 `root\wmi` 命名空间
+    ///
+    /// 关键：ConnectServer 后必须 CoSetProxyBlanket 设置代理安全级别，
+    /// 否则后续 ExecQuery 会报 0x80041003（WBEM_E_ACCESS_DENIED）——
+    /// PowerShell 自动处理这一步，原生 COM 必须显式设置。
     fn connect() -> Option<IWbemServices> {
+        use windows::Win32::System::Com::{
+            CoSetProxyBlanket, EOAC_NONE, RPC_C_AUTHN_LEVEL_CALL, RPC_C_IMP_LEVEL_IMPERSONATE,
+        };
+        use windows::Win32::System::Rpc::{RPC_C_AUTHN_WINNT, RPC_C_AUTHZ_NONE};
         unsafe {
             let locator: IWbemLocator =
                 CoCreateInstance(&WbemLocator, None, CLSCTX_INPROC_SERVER).ok()?;
-            locator
+            let services = locator
                 .ConnectServer(
                     &BSTR::from(NS),
                     &BSTR::default(),
@@ -221,7 +284,20 @@ mod wmi {
                     &BSTR::default(),
                     None::<&IWbemContext>,
                 )
-                .ok()
+                .ok()?;
+
+            // 设置代理安全：调用级认证 + 模拟级身份（WMI 标准设置）
+            let _ = CoSetProxyBlanket(
+                &services,
+                RPC_C_AUTHN_WINNT,   // 0x0A：NTLM
+                RPC_C_AUTHZ_NONE,    // 0：不做授权
+                None,                // 无服务器主体名
+                RPC_C_AUTHN_LEVEL_CALL,
+                RPC_C_IMP_LEVEL_IMPERSONATE,
+                None,
+                EOAC_NONE,
+            );
+            Some(services)
         }
     }
 
@@ -292,6 +368,22 @@ mod wmi {
         val
     }
 
+    /// WMI 对 CIM_UINT32 参数要求 VT_I4 装载（WMI 编码怪癖：I4 可承载 u32）
+    fn variant_i4(v: i32) -> VARIANT {
+        use windows::Win32::System::Variant::{VARIANT_0, VARIANT_0_0, VARIANT_0_0_0, VT_I4};
+        let mut val = VARIANT::default();
+        val.Anonymous = VARIANT_0 {
+            Anonymous: std::mem::ManuallyDrop::new(VARIANT_0_0 {
+                vt: VT_I4,
+                wReserved1: 0,
+                wReserved2: 0,
+                wReserved3: 0,
+                Anonymous: VARIANT_0_0_0 { lVal: v },
+            }),
+        };
+        val
+    }
+
     /// 读取当前背光（0–100）
     pub fn read_brightness() -> Option<u32> {
         let _guard = ComGuard::new();
@@ -299,64 +391,208 @@ mod wmi {
         query_u32(&services, "WmiMonitorBrightness", "CurrentBrightness")
     }
 
+    /// 诊断：逐步骤执行读取流程并输出失败点（供探针/排障使用）
+    ///
+    /// 返回诊断字符串；不改变任何系统状态。
+    pub fn debug_read_brightness() -> String {
+        use std::fmt::Write as _;
+        use windows::Win32::System::Com::{
+            CoInitializeSecurity, CoSetProxyBlanket, EOAC_NONE, RPC_C_AUTHN_LEVEL_CALL,
+            RPC_C_AUTHN_LEVEL_DEFAULT, RPC_C_IMP_LEVEL_IMPERSONATE,
+        };
+        use windows::Win32::System::Rpc::{RPC_C_AUTHN_WINNT, RPC_C_AUTHZ_NONE};
+        let mut out = String::new();
+
+        let hr = unsafe { CoInitializeEx(None, COINIT_MULTITHREADED) };
+        let _ = writeln!(out, "CoInitializeEx: {:?}", hr);
+
+        let sec = unsafe {
+            CoInitializeSecurity(
+                None,
+                -1,
+                None,
+                None,
+                RPC_C_AUTHN_LEVEL_DEFAULT,
+                RPC_C_IMP_LEVEL_IMPERSONATE,
+                None,
+                EOAC_NONE,
+                None,
+            )
+        };
+        let _ = writeln!(out, "CoInitializeSecurity: {:?}", sec);
+
+        let locator: windows::core::Result<IWbemLocator> =
+            unsafe { CoCreateInstance(&WbemLocator, None, CLSCTX_INPROC_SERVER) };
+        match &locator {
+            Ok(_) => { let _ = writeln!(out, "CoCreateInstance(WbemLocator): OK"); }
+            Err(e) => {
+                let _ = writeln!(out, "CoCreateInstance(WbemLocator): ERR {e}");
+                return out;
+            }
+        }
+
+        let services = unsafe {
+            locator
+                .unwrap()
+                .ConnectServer(
+                    &BSTR::from(NS),
+                    &BSTR::default(),
+                    &BSTR::default(),
+                    &BSTR::default(),
+                    0,
+                    &BSTR::default(),
+                    None::<&IWbemContext>,
+                )
+        };
+        match &services {
+            Ok(_) => { let _ = writeln!(out, "ConnectServer({NS}): OK"); }
+            Err(e) => {
+                let _ = writeln!(out, "ConnectServer: ERR {e}");
+                return out;
+            }
+        }
+        let services = services.unwrap();
+
+        let blanket = unsafe {
+            CoSetProxyBlanket(
+                &services,
+                RPC_C_AUTHN_WINNT,
+                RPC_C_AUTHZ_NONE,
+                None,
+                RPC_C_AUTHN_LEVEL_CALL,
+                RPC_C_IMP_LEVEL_IMPERSONATE,
+                None,
+                EOAC_NONE,
+            )
+        };
+        let _ = writeln!(out, "CoSetProxyBlanket: {:?}", blanket);
+
+        unsafe {
+            let query = BSTR::from("SELECT CurrentBrightness FROM WmiMonitorBrightness");
+            let lang = BSTR::from("WQL");
+            let enumerator =
+                services.ExecQuery(&lang, &query, WBEM_FLAG_FORWARD_ONLY, None::<&IWbemContext>);
+            match &enumerator {
+                Ok(_) => { let _ = writeln!(out, "ExecQuery: OK"); }
+                Err(e) => {
+                    let _ = writeln!(out, "ExecQuery: ERR {e}");
+                    return out;
+                }
+            }
+            let enumerator = enumerator.unwrap();
+
+            let mut objects: [Option<IWbemClassObject>; 1] = [None];
+            let mut returned: u32 = 0;
+            let hr = enumerator.Next(WBEM_INFINITE, &mut objects, &mut returned);
+            let _ = writeln!(out, "Next: hr={hr:?} returned={returned}");
+            if returned == 0 {
+                return out;
+            }
+            let Some(obj) = objects[0].take() else {
+                let _ = writeln!(out, "objects[0] is None");
+                return out;
+            };
+
+            let name: Vec<u16> = "CurrentBrightness"
+                .encode_utf16()
+                .chain(std::iter::once(0))
+                .collect();
+            let mut val = VARIANT::default();
+            let g = obj.Get(PCWSTR(name.as_ptr()), 0, &mut val, None, None);
+            let _ = writeln!(out, "Get(CurrentBrightness): {:?}", g);
+            if g.is_ok() {
+                let inner = &val.Anonymous.Anonymous;
+                let _ = writeln!(out, "vt = {} (VT_UI1={} VT_UI4={})", inner.vt.0, VT_UI1.0, VT_UI4.0);
+                let raw = match inner.vt {
+                    t if t == VT_UI1 => Some(inner.Anonymous.bVal as u32),
+                    t if t == VT_UI4 => Some(inner.Anonymous.ulVal),
+                    _ => None,
+                };
+                let _ = writeln!(out, "decoded = {raw:?}");
+            }
+        }
+        out
+    }
+
     /// 写入背光（0–100）；成功返回 true
     pub fn set_brightness(percent: u8) -> bool {
+        set_brightness_diag(percent).0
+    }
+
+    /// 写入背光（诊断版）：返回 (是否成功, 诊断字符串)
+    ///
+    /// 逐步输出各环节结果，供探针定位失败点。
+    pub fn set_brightness_diag(percent: u8) -> (bool, String) {
+        use std::fmt::Write as _;
+        let mut out = String::new();
+
         let _guard = ComGuard::new();
         let Some(services) = connect() else {
-            return false;
+            let _ = writeln!(out, "connect: FAILED");
+            return (false, out);
         };
+        let _ = writeln!(out, "connect: OK");
         unsafe {
             // 1. 取方法实例，并读取其实例路径（__PATH）
             let query = BSTR::from("SELECT * FROM WmiMonitorBrightnessMethods");
             let lang = BSTR::from("WQL");
-            let Ok(enumerator) = services.ExecQuery(
+            let enumerator = match services.ExecQuery(
                 &lang,
                 &query,
                 WBEM_FLAG_FORWARD_ONLY,
                 None::<&IWbemContext>,
-            ) else {
-                return false;
+            ) {
+                Ok(e) => {
+                    let _ = writeln!(out, "ExecQuery(methods): OK");
+                    e
+                }
+                Err(e) => {
+                    let _ = writeln!(out, "ExecQuery(methods): ERR {e}");
+                    return (false, out);
+                }
             };
             let mut objects: [Option<IWbemClassObject>; 1] = [None];
             let mut returned: u32 = 0;
             let hr = enumerator.Next(WBEM_INFINITE, &mut objects, &mut returned);
+            let _ = writeln!(out, "Next: hr={hr:?} returned={returned}");
             if hr.is_err() || returned == 0 {
-                return false;
+                return (false, out);
             }
             let Some(inst) = objects[0].take() else {
-                return false;
+                let _ = writeln!(out, "objects[0] None");
+                return (false, out);
             };
 
             let path_name: Vec<u16> = "__PATH".encode_utf16().chain(std::iter::once(0)).collect();
             let mut path_val = VARIANT::default();
-            if inst
-                .Get(PCWSTR(path_name.as_ptr()), 0, &mut path_val, None, None)
-                .is_err()
-            {
-                return false;
+            let g = inst.Get(PCWSTR(path_name.as_ptr()), 0, &mut path_val, None, None);
+            let _ = writeln!(out, "Get(__PATH): {g:?}");
+            if g.is_err() {
+                return (false, out);
             }
             let path_inner = &path_val.Anonymous.Anonymous;
+            let _ = writeln!(out, "__PATH vt={} (BSTR={})", path_inner.vt.0, VT_BSTR.0);
             if path_inner.vt != VT_BSTR {
-                return false;
+                return (false, out);
             }
             let object_path: BSTR = (*path_inner.Anonymous.bstrVal).clone();
+            let _ = writeln!(out, "object_path={:?}", object_path.to_string());
 
             // 2. 取类定义 → 方法输入签名 → 实例化入参
             let mut class_obj: Option<IWbemClassObject> = None;
-            if services
-                .GetObject(
-                    &BSTR::from("WmiMonitorBrightnessMethods"),
-                    WBEM_GENERIC_FLAG_TYPE(0),
-                    None::<&IWbemContext>,
-                    Some(&mut class_obj),
-                    None,
-                )
-                .is_err()
-            {
-                return false;
+            let go = services.GetObject(
+                &BSTR::from("WmiMonitorBrightnessMethods"),
+                WBEM_GENERIC_FLAG_TYPE(0),
+                None::<&IWbemContext>,
+                Some(&mut class_obj),
+                None,
+            );
+            let _ = writeln!(out, "GetObject(class): {go:?} present={}", class_obj.is_some());
+            if go.is_err() {
+                return (false, out);
             }
             let Some(class_obj) = class_obj else {
-                return false;
+                return (false, out);
             };
 
             let method_name: Vec<u16> = "WmiSetBrightness"
@@ -365,17 +601,23 @@ mod wmi {
                 .collect();
             let mut in_sig: Option<IWbemClassObject> = None;
             let mut out_sig: Option<IWbemClassObject> = None;
-            if class_obj
-                .GetMethod(PCWSTR(method_name.as_ptr()), 0, &mut in_sig, &mut out_sig)
-                .is_err()
-            {
-                return false;
+            let gm = class_obj.GetMethod(PCWSTR(method_name.as_ptr()), 0, &mut in_sig, &mut out_sig);
+            let _ = writeln!(
+                out,
+                "GetMethod: {gm:?} in_sig={} out_sig={}",
+                in_sig.is_some(),
+                out_sig.is_some()
+            );
+            if gm.is_err() {
+                return (false, out);
             }
             let Some(in_sig) = in_sig else {
-                return false;
+                return (false, out);
             };
-            let Ok(in_params) = in_sig.SpawnInstance(0) else {
-                return false;
+            let spawn = in_sig.SpawnInstance(0);
+            let _ = writeln!(out, "SpawnInstance: ok={}", spawn.is_ok());
+            let Ok(in_params) = spawn else {
+                return (false, out);
             };
 
             // 3. 填入参：Timeout=0（立即生效），Brightness=目标值
@@ -384,32 +626,27 @@ mod wmi {
                 .encode_utf16()
                 .chain(std::iter::once(0))
                 .collect();
-            if in_params
-                .Put(PCWSTR(timeout_name.as_ptr()), 0, &variant_u32(0), 0)
-                .is_err()
-            {
-                return false;
-            }
-            if in_params
-                .Put(PCWSTR(bright_name.as_ptr()), 0, &variant_u8(percent), 0)
-                .is_err()
-            {
-                return false;
+            let p1 = in_params.Put(PCWSTR(timeout_name.as_ptr()), 0, &variant_i4(0), CIM_UINT32.0);
+            let _ = writeln!(out, "Put(Timeout=0): {p1:?}");
+            let p2 = in_params.Put(PCWSTR(bright_name.as_ptr()), 0, &variant_u8(percent), CIM_UINT8.0);
+            let _ = writeln!(out, "Put(Brightness={percent}): {p2:?}");
+            if p1.is_err() || p2.is_err() {
+                return (false, out);
             }
 
             // 4. 执行方法
             let mut out_params: Option<IWbemClassObject> = None;
-            services
-                .ExecMethod(
-                    &object_path,
-                    &BSTR::from("WmiSetBrightness"),
-                    WBEM_GENERIC_FLAG_TYPE(0),
-                    None::<&IWbemContext>,
-                    &in_params,
-                    Some(&mut out_params),
-                    None,
-                )
-                .is_ok()
+            let em = services.ExecMethod(
+                &object_path,
+                &BSTR::from("WmiSetBrightness"),
+                WBEM_GENERIC_FLAG_TYPE(0),
+                None::<&IWbemContext>,
+                &in_params,
+                Some(&mut out_params),
+                None,
+            );
+            let _ = writeln!(out, "ExecMethod: {em:?}");
+            (em.is_ok(), out)
         }
     }
 }
@@ -539,5 +776,39 @@ mod tests {
         assert!(c.is_available());
         assert!(c.is_available());
         assert_eq!(c.backlight_available, Some(true));
+    }
+
+    #[test]
+    fn capture_initial_records_before_any_write() {
+        let mut c = BrightnessController::new(MockIo::available(85));
+        c.capture_initial();
+        assert_eq!(c.initial_backlight, Some(85), "捕获启动原值");
+        // 幂等：再次捕获不覆盖
+        let _ = c.apply(40);
+        c.capture_initial();
+        assert_eq!(c.initial_backlight, Some(85), "二次捕获不覆盖首次值");
+    }
+
+    #[test]
+    fn restore_initial_writes_back_and_is_idempotent() {
+        let mut c = BrightnessController::new(MockIo::available(90));
+        c.capture_initial();
+        let _ = c.apply(30);
+        assert_eq!(c.current_backlight(), Some(30));
+
+        // 还原 → 背光回到 90
+        assert!(c.restore_initial(), "应执行还原写入");
+        assert_eq!(c.current_backlight(), Some(90));
+
+        // 再次还原：已等于原值 → 不重复写（返回 false）
+        assert!(!c.restore_initial(), "已还原时幂等无操作");
+    }
+
+    #[test]
+    fn restore_initial_noop_without_capture() {
+        let mut c = BrightnessController::new(MockIo::available(100));
+        let _ = c.apply(50);
+        assert!(!c.restore_initial(), "未捕获原值时不动作");
+        assert_eq!(c.current_backlight(), Some(50), "值保持不动");
     }
 }

@@ -72,6 +72,8 @@ pub fn run() {
             {
                 let state = handle.state::<state::SharedState>();
                 let mut st = state.lock().unwrap();
+                // 先捕获系统背光原值（退出/恢复原色时还原用；必须在任何写入之前）
+                st.brightness.capture_initial();
                 let (_outcome, alpha) = st.brightness.apply(init_brightness as u32);
                 st.overlay_brightness = init_brightness as u32;
                 drop(st);
@@ -123,7 +125,9 @@ pub fn run() {
                 let state = app.state::<state::SharedState>();
                 let mut st = state.lock().unwrap();
                 let _ = st.display.restore();
-                eprintln!("[exit] 已恢复原始色彩");
+                // C 方案：还原系统背光到启动原值（与 gamma 恢复对称的承诺）
+                let restored = st.brightness.restore_initial();
+                eprintln!("[exit] 已恢复原始色彩（背光还原={restored}）");
             }
         });
 }

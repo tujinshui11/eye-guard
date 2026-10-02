@@ -125,18 +125,32 @@ pub(crate) fn nudge_temperature_with_app(app: &AppHandle, delta: f64) {
 }
 
 /// 恢复原色（对照 restoreColor）：先落 enabled=false → 恢复原始色 → 广播 → 返回 ok
+///
+/// C 方案：同时还原系统背光到启动原值 + 隐藏黑纱（「恢复原色」语义 = 屏幕完全交还用户）。
+/// 注意：apply_mask_alpha 会触达 overlay 窗口（内部回调取同一把锁），必须在放锁后调用。
 pub(crate) fn restore_color_with_app(app: &AppHandle) -> bool {
-    let state = app.state::<SharedState>();
-    let mut st = state.lock().unwrap();
-    let _ = st.settings.save(&json!({ "enabled": false }));
-    let ok = st.display.restore();
-    let _ = app.emit("display:changed", display_payload(&st));
+    let (ok, payload) = {
+        let state = app.state::<SharedState>();
+        let mut st = state.lock().unwrap();
+        let _ = st.settings.save(&json!({ "enabled": false }));
+        let ok = st.display.restore();
+        // C 方案：还原系统背光到启动原值
+        let _ = st.brightness.restore_initial();
+        st.overlay_brightness = 100;
+        (ok, display_payload(&st))
+    };
+    // 放锁后：隐藏黑纱 + 广播
+    crate::overlay::apply_mask_alpha(app, 0.0);
+    let _ = app.emit("display:changed", payload);
     ok
 }
 
 /// 重新启用（对照 reenableColor）：save enabled:true → 模式命中 applyMode / 否则恢复上次色温
+///
+/// C 方案：重新启用时同时恢复上次亮度设置（否则「恢复原色」还原了背光，「重新启用」
+/// 只回色温、背光停原值，与设置中的 brightness 不一致）。
 pub(crate) fn reenable_color_with_app(app: &AppHandle) {
-    let (mode_id, temperature) = {
+    let (mode_id, temperature, brightness) = {
         let state = app.state::<SharedState>();
         let mut st = state.lock().unwrap();
         let _ = st.settings.save(&json!({ "enabled": true }));
@@ -144,12 +158,23 @@ pub(crate) fn reenable_color_with_app(app: &AppHandle) {
         (
             s.get("modeId").and_then(|v| v.as_str()).unwrap_or("").to_string(),
             s.get("temperature").and_then(|v| v.as_f64()).unwrap_or(4500.0),
+            s.get("brightness").and_then(|v| v.as_u64()).unwrap_or(100) as u32,
         )
     };
     if get_mode(&mode_id).is_some() {
         apply_mode_with_app(app, &mode_id, true, false);
     } else {
         set_temperature_with_app(app, temperature, "custom");
+        // 自定义路径：补应用亮度（模式路径已由 apply_mode_with_app 处理）
+        let (outcome, alpha) = {
+            let state = app.state::<SharedState>();
+            let mut st = state.lock().unwrap();
+            let (outcome, alpha) = st.brightness.apply(brightness);
+            st.overlay_brightness = brightness;
+            (outcome, alpha)
+        };
+        let _ = outcome;
+        crate::overlay::apply_mask_alpha(app, alpha);
     }
 }
 
