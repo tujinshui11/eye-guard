@@ -89,7 +89,8 @@ pub(crate) fn apply_mode_with_app(
 }
 
 /// setTemperature 的内部实现（对照 index.js:118）——命令 / 热键 / 托盘微调共用
-pub(crate) fn set_temperature_with_app(app: &AppHandle, kelvin: f64, mode_id: &str) -> Value {    let state = app.state::<SharedState>();
+pub(crate) fn set_temperature_with_app(app: &AppHandle, kelvin: f64, mode_id: &str) -> Value {
+    let state = app.state::<SharedState>();
     let mut st = state.lock().unwrap();
     let n = if kelvin == 0.0 || kelvin.is_nan() {
         6500.0
