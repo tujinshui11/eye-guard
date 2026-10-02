@@ -296,7 +296,7 @@ pub fn settings_set(
     };
 
     if clean.get("theme").is_some() {
-        let theme = next.get("theme").cloned().unwrap_or(json!("deepsea"));
+        let theme = next.get("theme").cloned().unwrap_or(json!("dark"));
         let _ = app.emit("theme:changed", theme);
     }
     if clean.get("ambient").is_some() {

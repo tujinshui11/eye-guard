@@ -13,9 +13,9 @@ const path = require('node:path');
 const ROOT = path.join(__dirname, '..');
 const read = (p) => fs.readFileSync(path.join(ROOT, p), 'utf-8');
 
-/** 全部可选主题 id（deepsea 为 :root 默认值，不需要显式覆盖块） */
-const THEMES = ['deepsea', 'warm', 'anime'];
-const OVERRIDE_THEMES = THEMES.filter((t) => t !== 'deepsea');
+/** 全部可选主题 id（dark 为 :root 默认值，不需要显式覆盖块） */
+const THEMES = ['dark', 'light', 'warm', 'anime'];
+const OVERRIDE_THEMES = THEMES.filter((t) => t !== 'dark');
 
 const CSS_FILES = [
   'src/renderer/index.css',

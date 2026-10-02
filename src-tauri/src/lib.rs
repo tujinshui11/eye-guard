@@ -23,6 +23,18 @@ pub mod state;
 pub mod temperature;
 pub mod tray;
 
+/// 测试间共享的 Shell 串行锁。
+///
+/// 多线程并发访问 Windows Shell API（SHGetFileInfoW / IShellLinkW + COM）时存在
+/// 内部竞态：appicon 提取与 appscan 扫描的应用内并发测试会让 SHGetFileInfoW
+/// 偶发失败（实测：并行跑 1 failed，--test-threads=1 全绿）。生产路径为串行
+/// 调用不受影响；这里仅隔离测试，让涉 Shell 的用例串行执行。
+#[cfg(test)]
+pub(crate) mod test_support {
+    use std::sync::Mutex;
+    pub static SHELL_GUARD: Mutex<()> = Mutex::new(());
+}
+
 use tauri::Manager;
 
 pub fn run() {

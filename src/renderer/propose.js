@@ -3,15 +3,15 @@
 // 建议卡片窗口交互：调度询问（schedule）/ 感光提醒（ambient）共用
 // payload: { title, body, modeName, kind: 'schedule'|'ambient' }
 
-// 主题：跟随设置（deepsea 深海 / warm 暖橙 / anime 二次元），加载时应用
+// 主题：跟随设置（dark 深色 / light 浅色 / warm 暖橙 / anime 胖鱼），加载时应用
+const THEMES = ['dark', 'light', 'warm', 'anime'];
+const applyTheme = (t) => {
+  document.documentElement.dataset.theme = THEMES.includes(t) ? t : 'dark';
+};
 window.eyeGuard
   .getSettings()
-  .then((s) => {
-    document.documentElement.dataset.theme = (s && s.theme) || 'deepsea';
-  })
-  .catch(() => {
-    document.documentElement.dataset.theme = 'deepsea';
-  });
+  .then((s) => applyTheme(s && s.theme))
+  .catch(() => applyTheme(null));
 
 const titleEl = document.getElementById('title');
 const bodyEl = document.getElementById('body');

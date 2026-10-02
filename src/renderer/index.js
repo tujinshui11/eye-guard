@@ -94,10 +94,10 @@ function makeThrottle(fn, ms) {
 // ---- 主题 ----
 
 // 可选主题全集（applyTheme 白名单：未知值回落深海）
-const THEMES = ['deepsea', 'warm', 'anime'];
+const THEMES = ['dark', 'light', 'warm', 'anime'];
 
 function applyTheme(theme) {
-  const t = THEMES.includes(theme) ? theme : 'deepsea';
+  const t = THEMES.includes(theme) ? theme : 'dark';
   document.documentElement.dataset.theme = t;
   document.querySelectorAll('.theme-btn').forEach((b) => {
     b.classList.toggle('active', b.dataset.theme === t);
@@ -580,12 +580,8 @@ function renderColorSensitiveList() {
     if (app.icon) {
       icon.src = app.icon;
     } else {
-      icon.classList.add('app-icon-fallback');
-      icon.src =
-        'data:image/svg+xml;utf8,' +
-        encodeURIComponent(
-          '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16"><rect x="2" y="2" width="12" height="12" rx="2.5" fill="none" stroke="currentColor" stroke-width="1.4"/></svg>'
-        );
+      // 无图标：中性灰块占位（CSS .app-icon-empty），不再用 SVG data URL
+      icon.classList.add('app-icon-empty');
     }
     const nameSpan = document.createElement('span');
     nameSpan.className = 'app-name';
@@ -654,7 +650,13 @@ async function boot() {
 
   const settings = settingsR.status === 'fulfilled' ? settingsR.value : null;
   settingsCache = settings;
-  applyTheme(settings && settings.theme);
+  // 主题：白名单外的旧值（如旧版 "deepsea"）归一化为默认深色，并写回设置
+  let theme = settings && settings.theme;
+  if (!THEMES.includes(theme)) {
+    theme = 'dark';
+    if (settings) window.eyeGuard.updateSettings({ theme }).catch(() => {});
+  }
+  applyTheme(theme);
 
   if (versionR.status === 'fulfilled') versionEl.textContent = 'v' + versionR.value;
 

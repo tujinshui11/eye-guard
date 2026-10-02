@@ -19,7 +19,7 @@ pub fn defaults() -> Value {
         "brightness": 100,
         "preset": "off",
         "modeId": "natural",
-        "theme": "deepsea",
+        "theme": "dark",
         "breaks": { "enabled": true, "workSeconds": 1200, "breakSeconds": 20, "style": "gentle" },
         "hotkeys": { "tempUp": "Control+Alt+Up", "tempDown": "Control+Alt+Down" },
         "autoLaunch": false,
@@ -257,9 +257,9 @@ mod tests {
         let dir = tmp_dir("v2defaults");
         let mut store = SettingsStore::new(&dir);
         let data = store.load();
-        assert_eq!(data["theme"], "deepsea");
+        assert_eq!(data["theme"], "dark");
         assert_eq!(data["modeId"], "natural");
-        assert_eq!(defaults()["theme"], "deepsea");
+        assert_eq!(defaults()["theme"], "dark");
         assert_eq!(defaults()["modeId"], "natural");
     }
 
@@ -357,7 +357,7 @@ mod tests {
         let mut store = SettingsStore::new(&dir);
         let data = store.load();
         assert_eq!(data["modeId"], "natural");
-        assert_eq!(data["theme"], "deepsea");
+        assert_eq!(data["theme"], "dark");
     }
 
     // '迁移: 端到端——老配置加载后 save，迁移值随内存态落盘'
@@ -373,7 +373,7 @@ mod tests {
         let mut store = SettingsStore::new(&dir);
         let loaded = store.load().clone();
         assert_eq!(loaded["modeId"], "night");
-        assert_eq!(loaded["theme"], "deepsea");
+        assert_eq!(loaded["theme"], "dark");
         assert_eq!(loaded["temperature"], 4200);
         assert_eq!(loaded["breaks"]["workSeconds"], 900);
 
@@ -381,7 +381,7 @@ mod tests {
         let disk: Value =
             serde_json::from_str(&fs::read_to_string(dir.join("settings.json")).unwrap()).unwrap();
         assert_eq!(disk["modeId"], "night");
-        assert_eq!(disk["theme"], "deepsea");
+        assert_eq!(disk["theme"], "dark");
         assert_eq!(disk["brightness"], 70);
         assert_eq!(disk["temperature"], 4200);
         assert_eq!(disk["preset"], "night");

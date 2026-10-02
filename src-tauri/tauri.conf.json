@@ -12,8 +12,8 @@
       {
         "label": "main",
         "title": "护眼助手",
-        "width": 440,
-        "height": 680,
+        "width": 460,
+        "height": 720,
         "resizable": false,
         "maximizable": false,
         "center": true,
