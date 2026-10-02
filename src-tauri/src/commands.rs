@@ -200,14 +200,20 @@ pub fn display_get_state(state: State<'_, SharedState>) -> Value {
 }
 
 /// 对照 display:set-temperature（index.js:712）
+///
+/// 【v0.2.2 修复】改为 async：Tauri 同步命令跑在主线程，WMI 写入（数十毫秒）
+/// 会阻塞 UI；async 命令调度到线程池执行。
 #[tauri::command]
-pub fn display_set_temperature(app: AppHandle, kelvin: f64) -> Value {
+pub async fn display_set_temperature(app: AppHandle, kelvin: f64) -> Value {
     set_temperature_with_app(&app, kelvin, "custom")
 }
 
 /// 对照 display:set-brightness（index.js:728）→ C 方案：背光主控 + 黑纱补充
+///
+/// 【v0.2.2 修复】async 化：拖滑块时每 60ms 一次 WMI 写入，同步命令会反复
+/// 占用主线程导致界面卡顿——异步化后 WMI 调用在线程池执行。
 #[tauri::command]
-pub fn display_set_brightness(app: AppHandle, brightness: f64) -> Value {
+pub async fn display_set_brightness(app: AppHandle, brightness: f64) -> Value {
     let target = brightness.clamp(0.0, 100.0) as u32;
     let (outcome, alpha) = {
         let state = app.state::<SharedState>();
@@ -240,9 +246,9 @@ pub fn display_set_brightness(app: AppHandle, brightness: f64) -> Value {
     res
 }
 
-/// 对照 display:restore（index.js:726）
+/// 对照 display:restore（index.js:726）—— 恢复原色（含 WMI 背光还原，async 避免阻塞）
 #[tauri::command]
-pub fn display_restore(app: AppHandle) -> bool {
+pub async fn display_restore(app: AppHandle) -> bool {
     restore_color_with_app(&app)
 }
 
@@ -262,9 +268,9 @@ pub fn modes_list() -> Vec<Value> {
         .collect()
 }
 
-/// 对照 modes:apply（index.js:716）
+/// 对照 modes:apply —— 切换模式（含 WMI 背光写入，async 避免阻塞主线程）
 #[tauri::command]
-pub fn modes_apply(app: AppHandle, mode_id: String) -> Value {
+pub async fn modes_apply(app: AppHandle, mode_id: String) -> Value {
     apply_mode_with_app(&app, &mode_id, true, false)
 }
 

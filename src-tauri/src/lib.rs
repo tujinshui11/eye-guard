@@ -121,13 +121,28 @@ pub fn run() {
         .expect("error while building tauri application")
         .run(|app, event| {
             // 退出前恢复原始色彩（README 承诺「退出自动还原屏幕原色」）
+            //
+            // 【v0.2.2 修复】WMI 调用曾有无限等待（WBEM_INFINITE）——WMI 服务无响应时
+            // 退出路径永久挂起、应用无法退出。现已双保险：
+            //   1. brightness.rs 内部所有 WMI 调用改为 3 秒有界超时；
+            //   2. 此处再把整个还原流程放入独立线程并限时 3 秒——即使 COM 层异常，
+            //      退出也绝不阻塞。
             if let tauri::RunEvent::ExitRequested { .. } = event {
-                let state = app.state::<state::SharedState>();
-                let mut st = state.lock().unwrap();
-                let _ = st.display.restore();
-                // C 方案：还原系统背光到启动原值（与 gamma 恢复对称的承诺）
-                let restored = st.brightness.restore_initial();
-                eprintln!("[exit] 已恢复原始色彩（背光还原={restored}）");
+                let app_for_restore = app.clone();
+                let (tx, rx) = std::sync::mpsc::channel::<()>();
+                std::thread::spawn(move || {
+                    let state = app_for_restore.state::<state::SharedState>();
+                    let mut st = state.lock().unwrap();
+                    let _ = st.display.restore();
+                    // C 方案：还原系统背光到启动原值（与 gamma 恢复对称的承诺）
+                    let restored = st.brightness.restore_initial();
+                    eprintln!("[exit] 已恢复原始色彩（背光还原={restored}）");
+                    let _ = tx.send(());
+                });
+                // 最多等 3 秒；超时则放行退出（还原线程若仍在跑，会被进程终止一并清理）
+                if rx.recv_timeout(std::time::Duration::from_secs(3)).is_err() {
+                    eprintln!("[exit] 还原超时（WMI 无响应？）——强制放行退出");
+                }
             }
         });
 }

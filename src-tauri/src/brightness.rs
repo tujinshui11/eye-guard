@@ -211,10 +211,16 @@ mod wmi {
     use windows::Win32::System::Variant::{VARIANT, VT_BSTR, VT_UI1, VT_UI4};
     use windows::Win32::System::Wmi::{
         CIM_UINT32, CIM_UINT8, IWbemClassObject, IWbemContext, IWbemLocator, IWbemServices,
-        WbemLocator, WBEM_FLAG_FORWARD_ONLY, WBEM_GENERIC_FLAG_TYPE, WBEM_INFINITE,
+        WbemLocator, WBEM_FLAG_FORWARD_ONLY, WBEM_GENERIC_FLAG_TYPE,
     };
 
     const NS: &str = "ROOT\\WMI";
+
+    /// 有界等待超时（毫秒）——WMI 服务卡顿时放弃而非无限挂起
+    ///
+    /// 【v0.2.2 修复】此前用 WBEM_INFINITE：WMI 服务无响应时调用线程永久挂起，
+    /// 曾导致退出路径（背光还原）卡死、应用无法退出。改为 3 秒有界等待。
+    const WMI_TIMEOUT_MS: i32 = 3000;
 
     /// COM 初始化守卫（RAII；每线程配对 CoInitializeEx/CoUninitialize）
     struct ComGuard {
@@ -317,7 +323,7 @@ mod wmi {
 
             let mut objects: [Option<IWbemClassObject>; 1] = [None];
             let mut returned: u32 = 0;
-            let hr = enumerator.Next(WBEM_INFINITE, &mut objects, &mut returned);
+            let hr = enumerator.Next(WMI_TIMEOUT_MS, &mut objects, &mut returned);
             if hr.is_err() || returned == 0 {
                 return None;
             }
@@ -468,7 +474,7 @@ mod wmi {
 
             let mut objects: [Option<IWbemClassObject>; 1] = [None];
             let mut returned: u32 = 0;
-            let hr = enumerator.Next(WBEM_INFINITE, &mut objects, &mut returned);
+            let hr = enumerator.Next(WMI_TIMEOUT_MS, &mut objects, &mut returned);
             let _ = writeln!(out, "Next: hr={hr:?} returned={returned}");
             if returned == 0 {
                 return out;
@@ -538,7 +544,7 @@ mod wmi {
             };
             let mut objects: [Option<IWbemClassObject>; 1] = [None];
             let mut returned: u32 = 0;
-            let hr = enumerator.Next(WBEM_INFINITE, &mut objects, &mut returned);
+            let hr = enumerator.Next(WMI_TIMEOUT_MS, &mut objects, &mut returned);
             let _ = writeln!(out, "Next: hr={hr:?} returned={returned}");
             if hr.is_err() || returned == 0 {
                 return (false, out);
