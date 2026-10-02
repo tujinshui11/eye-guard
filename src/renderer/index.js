@@ -512,13 +512,20 @@ function renderChosen() {
     return;
   }
   for (const proc of colorSensitiveApps) {
-    // 已选里的显示名优先用扫描缓存里的；找不到就显示进程名
+    // 已选里的显示名/图标优先用扫描缓存里的；找不到就显示进程名
     const known = installedAppsCache && installedAppsCache.find((a) => a.process === proc);
     const chip = document.createElement('button');
     chip.type = 'button';
     chip.className = 'app-chip';
     chip.title = '点击移除 ' + proc;
-    chip.textContent = (known ? known.name : proc) + ' ×';
+    if (known && known.icon) {
+      const ci = document.createElement('img');
+      ci.className = 'app-icon app-icon-chip';
+      ci.alt = '';
+      ci.src = known.icon;
+      chip.appendChild(ci);
+    }
+    chip.appendChild(document.createTextNode((known ? known.name : proc) + ' ×'));
     chip.addEventListener('click', () => {
       colorSensitiveApps = colorSensitiveApps.filter((p) => p !== proc);
       saveColorSensitive({ apps: colorSensitiveApps });
@@ -567,13 +574,26 @@ function renderColorSensitiveList() {
       renderColorSensitiveList();
       renderColorSensitiveStatus();
     });
+    const icon = document.createElement('img');
+    icon.className = 'app-icon';
+    icon.alt = '';
+    if (app.icon) {
+      icon.src = app.icon;
+    } else {
+      icon.classList.add('app-icon-fallback');
+      icon.src =
+        'data:image/svg+xml;utf8,' +
+        encodeURIComponent(
+          '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16"><rect x="2" y="2" width="12" height="12" rx="2.5" fill="none" stroke="currentColor" stroke-width="1.4"/></svg>'
+        );
+    }
     const nameSpan = document.createElement('span');
     nameSpan.className = 'app-name';
     nameSpan.textContent = app.name;
     const procSpan = document.createElement('span');
     procSpan.className = 'app-proc';
     procSpan.textContent = app.process;
-    row.append(box, nameSpan, procSpan);
+    row.append(box, icon, nameSpan, procSpan);
     colorSensitiveList.appendChild(row);
   }
 }

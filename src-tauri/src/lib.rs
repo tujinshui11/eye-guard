@@ -2,6 +2,7 @@
 //! 对照 Electron 版 src/main/index.js 的生命周期/装配职责
 
 pub mod ambient;
+pub mod appicon;
 pub mod appscan;
 pub mod appwatch;
 pub mod break_rt;

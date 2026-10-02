@@ -406,6 +406,23 @@ input[type="range"]::-webkit-slider-thumb:hover { transform: scale(1.12); }
 .app-row.checked { background: rgba(255, 255, 255, 0.09); }
 .app-row input { accent-color: var(--accent); margin: 0; }
 
+.app-icon {
+  width: 16px;
+  height: 16px;
+  flex-shrink: 0;
+  object-fit: contain;
+  image-rendering: -webkit-optimize-contrast;
+}
+
+.app-icon-fallback { opacity: 0.5; }
+
+.app-icon-chip {
+  width: 13px;
+  height: 13px;
+  margin-right: 4px;
+  vertical-align: -2px;
+}
+
 .app-name { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
 .app-proc {
@@ -424,6 +441,8 @@ input[type="range"]::-webkit-slider-thumb:hover { transform: scale(1.12); }
 .app-chip {
   font: inherit;
   font-size: 11px;
+  display: inline-flex;
+  align-items: center;
   color: var(--text);
   background: rgba(255, 255, 255, 0.08);
   border: 1px solid var(--line);

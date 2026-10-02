@@ -12,13 +12,15 @@ use serde::Serialize;
 use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 
-/// 一条可选项：显示名 + 进程名（白名单存储用进程名）
+/// 一条可选项：显示名 + 进程名（白名单存储用进程名）+ 图标
 #[derive(Debug, Clone, Serialize, PartialEq)]
 pub struct AppEntry {
     /// 显示名（快捷方式文件名去扩展名，如 "Adobe Photoshop 2024"）
     pub name: String,
     /// 归一化进程名（如 "photoshop"，写入白名单用这个）
     pub process: String,
+    /// 图标 data URL（PNG base64；提取失败为 None）
+    pub icon: Option<String>,
 }
 
 /// 过滤系统噪音：这些不是用户想加白名单的"色彩敏感应用"
@@ -130,8 +132,8 @@ pub fn scan_installed_apps() -> Vec<AppEntry> {
         collect_lnk_files(dir, &mut lnks);
     }
 
-    // BTreeMap 以进程名为键去重（同进程多个快捷方式只留一条），值取显示名
-    let mut by_process: BTreeMap<String, String> = BTreeMap::new();
+    // BTreeMap 以进程名为键去重（同进程多个快捷方式只留一条），值取 (显示名, 目标exe)
+    let mut by_process: BTreeMap<String, (String, String)> = BTreeMap::new();
     for lnk in lnks {
         let Some(display) = lnk.file_stem().and_then(|s| s.to_str()) else {
             continue;
@@ -152,13 +154,19 @@ pub fn scan_installed_apps() -> Vec<AppEntry> {
         {
             continue;
         }
-        by_process.entry(process).or_insert_with(|| display.to_string());
+        by_process
+            .entry(process)
+            .or_insert_with(|| (display.to_string(), target));
     }
 
-    // 排序：按显示名（不区分大小写）
+    // 排序：按显示名（不区分大小写）；图标提取（每条失败静默 None）
     let mut list: Vec<AppEntry> = by_process
         .into_iter()
-        .map(|(process, name)| AppEntry { name, process })
+        .map(|(process, (name, target))| AppEntry {
+            name,
+            process,
+            icon: crate::appicon::extract_icon_data_url(&target),
+        })
         .collect();
     list.sort_by_key(|e| e.name.to_ascii_lowercase());
     list
