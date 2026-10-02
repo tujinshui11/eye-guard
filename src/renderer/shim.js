@@ -28,6 +28,9 @@
     proposeAction: (name) => invoke('propose_action', { name }),
     getAmbientState: () => invoke('ambient_get_state'),
     listInstalledApps: () => invoke('apps_list_installed'),
+    // 无边框窗口的自绘按钮
+    windowMinimize: () => invoke('window_minimize'),
+    windowHide: () => invoke('window_hide'),
 
     // ---- 事件订阅（5）—— 事件名与 Electron 版一致 ----
     onPropose: (cb) => { listen('propose:update', (e) => cb(e.payload)); },

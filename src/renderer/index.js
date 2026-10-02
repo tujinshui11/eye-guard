@@ -722,3 +722,28 @@ async function boot() {
 }
 
 window.addEventListener('DOMContentLoaded', boot);
+
+// ---- 板块导航（分板块切换：显示调节 / 休息提醒 / 自动化 / 通用）----
+
+function switchPanel(name) {
+  document.querySelectorAll('.panel').forEach((p) => {
+    p.classList.toggle('active', p.dataset.panel === name);
+  });
+  document.querySelectorAll('.nav-item').forEach((b) => {
+    b.classList.toggle('active', b.dataset.panelTarget === name);
+  });
+}
+
+document.querySelectorAll('.nav-item').forEach((btn) => {
+  btn.addEventListener('click', () => switchPanel(btn.dataset.panelTarget));
+});
+
+// ---- 无边框窗口的自绘按钮 ----
+
+$('win-min').addEventListener('click', () => {
+  window.eyeGuard.windowMinimize().catch(() => {});
+});
+
+$('win-close').addEventListener('click', () => {
+  window.eyeGuard.windowHide().catch(() => {});
+});

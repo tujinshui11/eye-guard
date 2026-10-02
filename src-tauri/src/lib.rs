@@ -68,11 +68,22 @@ pub fn run() {
             commands::propose_action,
             commands::ambient_get_state,
             commands::apps_list_installed,
+            commands::window_minimize,
+            commands::window_hide,
         ])
         .setup(|app| {
             // 全局状态：设置 + display（含 dirty 自愈与启动状态 silent 恢复）
             app.manage(std::sync::Mutex::new(state::bootstrap()));
             let handle = app.handle().clone();
+
+            // 无边框透明窗口：应用 Windows Acrylic（毛玻璃 + 实时透出桌面）
+            #[cfg(target_os = "windows")]
+            if let Some(w) = app.get_webview_window("main") {
+                match window_vibrancy::apply_acrylic(&w, Some((28, 24, 28, 130))) {
+                    Ok(_) => eprintln!("[boot] acrylic applied"),
+                    Err(e) => eprintln!("[boot] acrylic 失败（降级为纯 CSS 玻璃）: {e}"),
+                }
+            }
 
             // 启动状态：亮度恢复（对照 applyStartupState 的 brightness < 100 → setBrightness 分支）
             // C 方案：走亮度控制器（背光主控 + 黑纱补充），而非旧遮罩直换

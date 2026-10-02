@@ -3,199 +3,229 @@
 <head>
   <meta charset="UTF-8" />
   <meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:" />
-  <title>护眼助手</title>
+  <title>埃斯</title>
   <link rel="stylesheet" href="index.css" />
 </head>
-<body>
-  <header>
-    <div class="brand">
-      <span class="whale" aria-hidden="true">
-        <!-- 抽象鲸尾（自绘）：双弧尾鳍 + 气泡 -->
-        <svg width="38" height="38" viewBox="0 0 40 40" fill="none">
-          <defs>
-            <linearGradient id="whaleGrad" x1="6" y1="8" x2="34" y2="32" gradientUnits="userSpaceOnUse">
-              <stop offset="0" stop-color="#4D6BFE" />
-              <stop offset="1" stop-color="#38BDF8" />
-            </linearGradient>
-          </defs>
-          <path d="M20 31 C17.5 25 11 21 6.5 12.5 C14 14 19 18.5 20 24.5 C21 18.5 26 14 33.5 12.5 C29 21 22.5 25 20 31 Z"
-                fill="url(#whaleGrad)" opacity="0.95" />
-          <circle cx="31.5" cy="30" r="2" fill="#38BDF8" opacity="0.65" />
-          <circle cx="35" cy="25.5" r="1.2" fill="#38BDF8" opacity="0.45" />
-        </svg>
-      </span>
-      <div class="brand-text">
-        <h1>护眼助手</h1>
-        <span id="version" class="version"></span>
-      </div>
-    </div>
-    <span id="status" class="status">已启用</span>
-  </header>
-
-  <main>
-    <section class="card">
-      <div class="card-head">
-        <h2>场景模式</h2>
-        <span class="hint">点击应用 · 色温 + 亮度组合</span>
-      </div>
-      <div id="mode-grid" class="mode-grid"></div>
-    </section>
-
-    <section class="card">
-      <div class="card-head">
-        <h2>精细调节</h2>
-        <span class="value"><span id="temperature-value">6500</span><span class="unit">K</span></span>
-      </div>
-      <input type="range" id="temperature" min="2000" max="10000" step="100" value="6500" />
-      <div class="ticks">
-        <span>2000K · 暖</span>
-        <span>6500K · 原色</span>
-        <span>10000K · 冷</span>
-      </div>
-      <p id="temp-note" class="note hidden"></p>
-
-      <div class="card-head sub">
-        <h2>亮度</h2>
-        <span class="value"><span id="brightness-value">100</span><span class="unit">%</span></span>
-      </div>
-      <input type="range" id="brightness" min="10" max="100" step="1" value="100" />
-      <div class="ticks">
-        <span>10% · 暗</span>
-        <span>100% · 原始</span>
-      </div>
-      <div class="ticks">
-        <span>50% · 暗</span>
-        <span>100% · 原始</span>
-      </div>
-    </section>
-
-    <section class="card">
-      <div class="card-head">
-        <h2>休息提醒</h2>
-        <span class="hint">20-20-20 已内置</span>
-      </div>
-      <label class="check-row">
-        <input type="checkbox" id="break-enabled" checked />
-        <span>启用定时休息提醒</span>
-      </label>
-      <div class="field-row">
-        <label class="field">工作
-          <input type="number" id="break-work" min="1" max="240" step="1" value="20" />
-          分钟
-        </label>
-        <label class="field">休息
-          <input type="number" id="break-rest" min="5" max="3600" step="1" value="20" />
-          秒
-        </label>
-      </div>
-      <div class="field-row">
-        <label class="field">提醒样式
-          <select id="break-style">
-            <option value="gentle">温和卡片（默认）</option>
-            <option value="fullscreen">全屏遮罩（强制）</option>
-          </select>
-        </label>
-      </div>
-      <div class="presets">
-        <button id="preset-2020">20-20-20 规则</button>
-        <button id="break-pause">暂停提醒 1 小时</button>
-      </div>
-      <p id="break-status" class="note muted-line"></p>
-      <p id="break-note" class="note hidden"></p>
-    </section>
-
-    <section class="card">
-      <div class="card-head">
-        <h2>时间调度</h2>
-        <label class="switch mini">
-          <input type="checkbox" id="schedule-enabled" />
-          <span>启用</span>
-        </label>
-      </div>
-      <p class="hint">到点自动切换，或弹卡片询问（默认关闭）</p>
-      <div id="schedule-list" class="schedule-list"></div>
-      <div class="presets">
-        <button id="schedule-add">＋ 添加条目</button>
-      </div>
-      <p id="schedule-note" class="note hidden"></p>
-    </section>
-
-    <section class="card">
-      <div class="card-head">
-        <h2>感光监测</h2>
-        <label class="switch mini">
-          <input type="checkbox" id="ambient-enabled" />
-          <span>启用</span>
-        </label>
-      </div>
-      <p class="hint">环境光线变暗时提醒或自动切换（默认关闭）</p>
-      <details class="advanced">
-        <summary>高级设置</summary>
-        <div class="field-row">
-          <label class="field">采样间隔
-            <input type="number" id="ambient-interval" min="30" max="300" step="10" value="60" /> 秒
-          </label>
-          <label class="field">触发阈值
-            <input type="number" id="ambient-threshold" min="10" max="80" step="5" value="35" /> %
-          </label>
-        </div>
-        <div class="field-row">
-          <label class="field">行为
-            <select id="ambient-action">
-              <option value="notify">弹卡询问</option>
-              <option value="auto">自动切换</option>
-            </select>
-          </label>
-          <label class="field">切换为
-            <select id="ambient-mode"></select>
-          </label>
-        </div>
-      </details>
-      <p id="ambient-status" class="note muted-line">未启用</p>
-      <p class="privacy">隐私说明：测光时摄像头短暂工作（指示灯约 1 秒），画面仅用于本机计算亮度数值，不保存、不传输。</p>
-    </section>
-
-    <section class="card">
-      <div class="card-head">
-        <h2>色彩敏感应用</h2>
-        <label class="switch mini">
-          <input type="checkbox" id="colorsensitive-enabled" />
-          <span>启用</span>
-        </label>
-      </div>
-      <p class="hint">这些应用进入前台时自动恢复原色（不干扰专业色彩判断），切走后自动恢复护眼</p>
-      <input type="text" id="colorsensitive-search" class="apps-search" placeholder="搜索应用（如 photoshop、剪映）…" spellcheck="false" />
-      <div id="colorsensitive-list" class="apps-list" role="listbox" aria-label="已安装应用"></div>
-      <div id="colorsensitive-chosen" class="apps-chosen"></div>
-      <p id="colorsensitive-status" class="note muted-line">默认关闭</p>
-      <p class="privacy">提示：亮度（背光）不受影响；仅色温滤镜被临时挂起，且不会修改你保存的开关设置。</p>
-    </section>
-
-    <section class="card">
-      <div class="card-head">
-        <h2>通用</h2>
-      </div>
-      <div class="field-row">
-        <label class="field">界面主题
-        </label>
-        <div class="theme-switch" role="group" aria-label="界面主题">
-          <button class="theme-btn active" data-theme="dark">深色</button>
-          <button class="theme-btn" data-theme="light">浅色</button>
-          <button class="theme-btn" data-theme="warm">暖橙</button>
-          <button class="theme-btn" data-theme="anime">胖鱼</button>
+<body class="app-shell">
+  <div class="window">
+    <aside class="nav">
+      <div class="nav-brand" data-tauri-drag-region>
+        <img class="nav-logo" src="icon.png" alt="" draggable="false" />
+        <div class="nav-brand-text">
+          <h1>埃斯</h1>
+          <span id="version" class="version"></span>
         </div>
       </div>
-      <label class="check-row">
-        <input type="checkbox" id="auto-launch" />
-        <span>开机自启动（启动后驻留托盘）</span>
-      </label>
-      <p class="placeholder">全局热键：Ctrl+Alt+↑ / Ctrl+Alt+↓ 调节色温（±200K）</p>
-    </section>
+      <nav class="nav-list">
+        <button class="nav-item active" data-panel-target="display">显示调节</button>
+        <button class="nav-item" data-panel-target="rest">休息提醒</button>
+        <button class="nav-item" data-panel-target="auto">自动化</button>
+        <button class="nav-item" data-panel-target="general">通用</button>
+      </nav>
+      <div class="nav-foot">
+        <span id="status" class="status">已启用</span>
+        <div class="win-btns">
+          <button id="win-min" class="win-btn" title="最小化">—</button>
+          <button id="win-close" class="win-btn" title="最小化到托盘">✕</button>
+        </div>
+      </div>
+    </aside>
 
-    <div class="mascot" aria-hidden="true">
-      <img src="assets/whale-girl.png" alt="" />
-    </div>
-  </main>
+    <main>
+      <!-- ======== 显示调节 ======== -->
+      <div class="panel active" data-panel="display">
+        <header class="panel-head" data-tauri-drag-region>
+          <h2>显示调节</h2>
+          <p class="hint">色温与亮度 · 实时生效</p>
+        </header>
+
+        <section class="card">
+          <div class="card-head">
+            <h2>场景模式</h2>
+            <span class="hint">点击应用 · 色温 + 亮度组合</span>
+          </div>
+          <div id="mode-grid" class="mode-grid"></div>
+        </section>
+
+        <section class="card">
+          <div class="card-head">
+            <h2>精细调节</h2>
+            <span class="value"><span id="temperature-value">6500</span><span class="unit">K</span></span>
+          </div>
+          <input type="range" id="temperature" min="2000" max="10000" step="100" value="6500" />
+          <div class="ticks">
+            <span>2000K · 暖</span>
+            <span>6500K · 原色</span>
+            <span>10000K · 冷</span>
+          </div>
+          <p id="temp-note" class="note hidden"></p>
+
+          <div class="card-head sub">
+            <h2>亮度</h2>
+            <span class="value"><span id="brightness-value">100</span><span class="unit">%</span></span>
+          </div>
+          <input type="range" id="brightness" min="10" max="100" step="1" value="100" />
+          <div class="ticks">
+            <span>10% · 暗</span>
+            <span>100% · 原始</span>
+          </div>
+        </section>
+      </div>
+
+      <!-- ======== 休息提醒 ======== -->
+      <div class="panel" data-panel="rest">
+        <header class="panel-head" data-tauri-drag-region>
+          <h2>休息提醒</h2>
+          <p class="hint">20-20-20 规则 · 定时放松眼睛</p>
+        </header>
+
+        <section class="card">
+          <div class="card-head">
+            <h2>提醒设置</h2>
+            <span class="hint">20-20-20 已内置</span>
+          </div>
+          <label class="check-row">
+            <input type="checkbox" id="break-enabled" checked />
+            <span>启用定时休息提醒</span>
+          </label>
+          <div class="field-row">
+            <label class="field">工作
+              <input type="number" id="break-work" min="1" max="240" step="1" value="20" />
+              分钟
+            </label>
+            <label class="field">休息
+              <input type="number" id="break-rest" min="5" max="3600" step="1" value="20" />
+              秒
+            </label>
+          </div>
+          <div class="field-row">
+            <label class="field">提醒样式
+              <select id="break-style">
+                <option value="gentle">温和卡片（默认）</option>
+                <option value="fullscreen">全屏遮罩（强制）</option>
+              </select>
+            </label>
+          </div>
+          <div class="presets">
+            <button id="preset-2020">20-20-20 规则</button>
+            <button id="break-pause">暂停提醒 1 小时</button>
+          </div>
+          <p id="break-status" class="note muted-line"></p>
+          <p id="break-note" class="note hidden"></p>
+        </section>
+      </div>
+
+      <!-- ======== 自动化 ======== -->
+      <div class="panel" data-panel="auto">
+        <header class="panel-head" data-tauri-drag-region>
+          <h2>自动化</h2>
+          <p class="hint">按场景与时间自动调整 · 色彩敏感应用保护</p>
+        </header>
+
+        <section class="card">
+          <div class="card-head">
+            <h2>色彩敏感应用</h2>
+            <label class="switch mini">
+              <input type="checkbox" id="colorsensitive-enabled" />
+              <span>启用</span>
+            </label>
+          </div>
+          <p class="hint">这些应用进入前台时自动恢复原色（不干扰专业色彩判断），切走后自动恢复护眼</p>
+          <input type="text" id="colorsensitive-search" class="apps-search" placeholder="搜索应用（如 photoshop、剪映）…" spellcheck="false" />
+          <div id="colorsensitive-list" class="apps-list" role="listbox" aria-label="已安装应用"></div>
+          <div id="colorsensitive-chosen" class="apps-chosen"></div>
+          <p id="colorsensitive-status" class="note muted-line">默认关闭</p>
+          <p class="privacy">提示：亮度（背光）不受影响；仅色温滤镜被临时挂起，且不会修改你保存的开关设置。</p>
+        </section>
+
+        <section class="card">
+          <div class="card-head">
+            <h2>感光监测</h2>
+            <label class="switch mini">
+              <input type="checkbox" id="ambient-enabled" />
+              <span>启用</span>
+            </label>
+          </div>
+          <p class="hint">环境光线变暗时提醒或自动切换（默认关闭）</p>
+          <details class="advanced">
+            <summary>高级设置</summary>
+            <div class="field-row">
+              <label class="field">采样间隔
+                <input type="number" id="ambient-interval" min="30" max="300" step="10" value="60" /> 秒
+              </label>
+              <label class="field">触发阈值
+                <input type="number" id="ambient-threshold" min="10" max="80" step="5" value="35" /> %
+              </label>
+            </div>
+            <div class="field-row">
+              <label class="field">行为
+                <select id="ambient-action">
+                  <option value="notify">弹卡询问</option>
+                  <option value="auto">自动切换</option>
+                </select>
+              </label>
+              <label class="field">切换为
+                <select id="ambient-mode"></select>
+              </label>
+            </div>
+          </details>
+          <p id="ambient-status" class="note muted-line">未启用</p>
+          <p class="privacy">隐私说明：测光时摄像头短暂工作（指示灯约 1 秒），画面仅用于本机计算亮度数值，不保存、不传输。</p>
+        </section>
+
+        <section class="card">
+          <div class="card-head">
+            <h2>时间调度</h2>
+            <label class="switch mini">
+              <input type="checkbox" id="schedule-enabled" />
+              <span>启用</span>
+            </label>
+          </div>
+          <p class="hint">到点自动切换，或弹卡片询问（默认关闭）</p>
+          <div id="schedule-list" class="schedule-list"></div>
+          <div class="presets">
+            <button id="schedule-add">＋ 添加条目</button>
+          </div>
+          <p id="schedule-note" class="note hidden"></p>
+        </section>
+      </div>
+
+      <!-- ======== 通用 ======== -->
+      <div class="panel" data-panel="general">
+        <header class="panel-head" data-tauri-drag-region>
+          <h2>通用</h2>
+          <p class="hint">外观与系统集成</p>
+        </header>
+
+        <section class="card">
+          <div class="card-head">
+            <h2>界面主题</h2>
+          </div>
+          <div class="theme-switch" role="group" aria-label="界面主题">
+            <button class="theme-btn active" data-theme="dark">深色</button>
+            <button class="theme-btn" data-theme="light">浅色</button>
+            <button class="theme-btn" data-theme="warm">暖橙</button>
+            <button class="theme-btn" data-theme="anime">胖鱼</button>
+          </div>
+        </section>
+
+        <section class="card">
+          <div class="card-head">
+            <h2>系统集成</h2>
+          </div>
+          <label class="check-row">
+            <input type="checkbox" id="auto-launch" />
+            <span>开机自启动（启动后驻留托盘）</span>
+          </label>
+          <p class="placeholder">全局热键：Ctrl+Alt+↑ / Ctrl+Alt+↓ 调节色温（±200K）</p>
+        </section>
+
+        <div class="mascot" aria-hidden="true">
+          <img src="assets/whale-girl.png" alt="" />
+        </div>
+      </div>
+    </main>
+  </div>
 
   <script src="shim.js"></script>
   <script src="index.js"></script>

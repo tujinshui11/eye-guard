@@ -1,6 +1,6 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
-  "productName": "护眼助手",
+  "productName": "埃斯",
   "version": "0.2.2",
   "identifier": "com.tujinshui11.eyeguard",
   "build": {
@@ -11,14 +11,18 @@
     "windows": [
       {
         "label": "main",
-        "title": "护眼助手",
-        "width": 460,
-        "height": 720,
+        "title": "埃斯",
+        "width": 820,
+        "height": 560,
+        "minWidth": 720,
+        "minHeight": 480,
         "resizable": false,
         "maximizable": false,
         "center": true,
         "visible": false,
-        "backgroundColor": "#0B0F1A"
+        "transparent": true,
+        "decorations": false,
+        "backgroundColor": "#00000000"
       }
     ],
     "security": {

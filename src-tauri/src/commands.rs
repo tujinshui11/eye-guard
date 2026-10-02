@@ -448,3 +448,21 @@ pub fn ambient_get_state(app: AppHandle) -> Value {
 pub async fn apps_list_installed() -> Vec<crate::appscan::AppEntry> {
     crate::appscan::scan_installed_apps()
 }
+
+// ---- 窗口控制（无边框窗口的自绘按钮）----
+
+/// 最小化到任务栏
+#[tauri::command]
+pub fn window_minimize(app: AppHandle) {
+    if let Some(w) = app.get_webview_window("main") {
+        let _ = w.minimize();
+    }
+}
+
+/// 关闭按钮 = 隐藏到托盘（与系统关闭行为一致）
+#[tauri::command]
+pub fn window_hide(app: AppHandle) {
+    if let Some(w) = app.get_webview_window("main") {
+        let _ = w.hide();
+    }
+}
