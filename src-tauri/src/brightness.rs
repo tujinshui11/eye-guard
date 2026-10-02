@@ -353,21 +353,6 @@ mod wmi {
         val
     }
 
-    fn variant_u32(v: u32) -> VARIANT {
-        use windows::Win32::System::Variant::{VARIANT_0, VARIANT_0_0, VARIANT_0_0_0};
-        let mut val = VARIANT::default();
-        val.Anonymous = VARIANT_0 {
-            Anonymous: std::mem::ManuallyDrop::new(VARIANT_0_0 {
-                vt: VT_UI4,
-                wReserved1: 0,
-                wReserved2: 0,
-                wReserved3: 0,
-                Anonymous: VARIANT_0_0_0 { ulVal: v },
-            }),
-        };
-        val
-    }
-
     /// WMI 对 CIM_UINT32 参数要求 VT_I4 装载（WMI 编码怪癖：I4 可承载 u32）
     fn variant_i4(v: i32) -> VARIANT {
         use windows::Win32::System::Variant::{VARIANT_0, VARIANT_0_0, VARIANT_0_0_0, VT_I4};
