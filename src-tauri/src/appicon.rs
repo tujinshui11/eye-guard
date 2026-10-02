@@ -24,6 +24,16 @@ pub fn extract_icon_data_url(exe_path: &str) -> Option<String> {
 
 /// 提取 32×32 RGBA 像素（失败返回 None）
 pub fn extract_icon_rgba(exe_path: &str) -> Option<Vec<u8>> {
+    extract_icon_rgba_impl(exe_path, true)
+}
+
+/// 诊断变体：跳过反预乘（供像素对比诊断，正式路径不用）
+#[doc(hidden)]
+pub fn extract_icon_rgba_nopremul(exe_path: &str) -> Option<Vec<u8>> {
+    extract_icon_rgba_impl(exe_path, false)
+}
+
+fn extract_icon_rgba_impl(exe_path: &str, unpremultiply: bool) -> Option<Vec<u8>> {
     use windows::core::PCWSTR;
     use windows::Win32::Graphics::Gdi::{
         CreateCompatibleDC, DeleteDC, DeleteObject, GetDIBits, GetObjectW, BITMAP, BITMAPINFO,
@@ -120,7 +130,7 @@ pub fn extract_icon_rgba(exe_path: &str) -> Option<Vec<u8>> {
                 return None;
             }
 
-            // 5. BGRA → RGBA；反 premultiplied alpha
+            // 5. BGRA → RGBA；可选反 premultiplied alpha
             //    （GetIconInfo 的 color bitmap 是预乘的，直接当直通 alpha 用会让
             //     半透明边缘偏暗——用 c = c*255/a 还原）
             let px_count = (bm.bmWidth * bm.bmHeight) as usize;
@@ -130,7 +140,7 @@ pub fn extract_icon_rgba(exe_path: &str) -> Option<Vec<u8>> {
                 let g = buf[i * 4 + 1];
                 let r = buf[i * 4 + 2];
                 let a = buf[i * 4 + 3];
-                let (r, g, b) = if a > 0 && a < 255 {
+                let (r, g, b) = if unpremultiply && a > 0 && a < 255 {
                     let un = |c: u8| ((c as u32 * 255) / a as u32).min(255) as u8;
                     (un(r), un(g), un(b))
                 } else {
@@ -195,6 +205,8 @@ mod tests {
 
     #[test]
     fn invalid_path_returns_default_or_none() {
+        // 与 appscan 的 Shell 测试串行（见 lib.rs test_support：Shell 并发竞态）
+        let _g = crate::test_support::SHELL_GUARD.lock().unwrap_or_else(|e| e.into_inner());
         // 真实语义（实测确定）：不存在的路径 → None；
         // 空串 → SHGetFileInfoW 返回「未知文件类型」默认图标（系统行为，合理）
         assert!(extract_icon_rgba("C:\\definitely\\not\\a\\real\\path.exe").is_none());
@@ -203,6 +215,8 @@ mod tests {
 
     #[test]
     fn system_exe_yields_valid_png() {
+        // 与 appscan 的 Shell 测试串行（见 lib.rs test_support：Shell 并发竞态）
+        let _g = crate::test_support::SHELL_GUARD.lock().unwrap_or_else(|e| e.into_inner());
         // 用系统记事本（有真实图标资源）——实测 685/1024 非透明像素
         let path = "C:\\Windows\\System32\\notepad.exe";
         let Some(rgba) = extract_icon_rgba(path) else {

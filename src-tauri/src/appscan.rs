@@ -144,6 +144,10 @@ pub fn scan_installed_apps() -> Vec<AppEntry> {
         let Some(target) = resolve_lnk_target(&lnk) else {
             continue;
         };
+        // .msc 系统管理单元（services.msc 等）——对"色彩敏感应用"白名单无意义
+        if target.to_ascii_lowercase().ends_with(".msc") {
+            continue;
+        }
         let process = crate::appwatch::normalize_process_name(&target);
         // 过滤明显非应用的（空名 / 卸载器 / rundll32 等）
         if process.is_empty()
@@ -191,6 +195,8 @@ mod tests {
 
     #[test]
     fn scan_returns_sorted_deduped_list() {
+        // 与 appicon 的 Shell 测试串行（见 lib.rs test_support：Shell 并发竞态）
+        let _g = crate::test_support::SHELL_GUARD.lock().unwrap_or_else(|e| e.into_inner());
         // 实机冒烟：真实扫描本机开始菜单
         let apps = scan_installed_apps();
         // 有开始菜单就一定有个位数以上条目
@@ -214,12 +220,122 @@ mod tests {
 
     #[test]
     fn scan_filters_noise_and_normalizes() {
+        // 与 appicon 的 Shell 测试串行（见 lib.rs test_support：Shell 并发竞态）
+        let _g = crate::test_support::SHELL_GUARD.lock().unwrap_or_else(|e| e.into_inner());
         let apps = scan_installed_apps();
         for a in &apps {
             assert!(!a.process.is_empty());
             assert!(!a.process.ends_with(".exe"), "进程名应已去后缀: {}", a.process);
             assert!(!a.process.contains('\\'), "进程名不应含路径: {}", a.process);
             assert!(!is_noise(&a.name), "不应含噪音项: {}", a.name);
+        }
+    }
+
+    // ============================================================
+    // 诊断探针（--ignored）：图标质量检查
+    // ============================================================
+    mod probe {
+        use super::*;
+        use base64::Engine as _;
+
+        fn stats(url: &str) -> String {
+            let Some(b64) = url.strip_prefix("data:image/png;base64,") else {
+                return "not-a-png-dataurl".into();
+            };
+            let Ok(bytes) = base64::engine::general_purpose::STANDARD.decode(b64) else {
+                return "b64-decode-fail".into();
+            };
+            let decoder = png::Decoder::new(std::io::Cursor::new(&bytes));
+            let Ok(mut reader) = decoder.read_info() else {
+                return "png-header-fail".into();
+            };
+            let mut buf = vec![0; reader.output_buffer_size()];
+            let Ok(info) = reader.next_frame(&mut buf) else {
+                return "png-frame-fail".into();
+            };
+            let px = &buf[..info.buffer_size()];
+            let n = px.len() / 4;
+            let a_pos = px.chunks(4).filter(|c| c[3] > 0).count();
+            let a_255 = px.chunks(4).filter(|c| c[3] == 255).count();
+            let colorful = px
+                .chunks(4)
+                .filter(|c| c[3] > 0)
+                .filter(|c| {
+                    let mx = c[0].max(c[1]).max(c[2]) as i32;
+                    let mn = c[0].min(c[1]).min(c[2]) as i32;
+                    mx - mn > 40
+                })
+                .count();
+            format!("{n}px alpha>0:{a_pos} opaque:{a_255} colorful:{colorful}")
+        }
+
+        fn direct(p: &str) -> String {
+            match crate::appicon::extract_icon_data_url(p) {
+                Some(u) => stats(&u),
+                None => "NONE".into(),
+            }
+        }
+
+        #[test]
+        #[ignore = "诊断探针：检查真实应用图标的 alpha/彩色像素分布"]
+        fn probe_icon_quality() {
+            println!("=== A. 直接路径提取 ===");
+            for p in [
+                "C:\\Windows\\System32\\cleanmgr.exe",
+                "C:\\Windows\\System32\\dfrgui.exe",
+                "C:\\Windows\\System32\\eventvwr.msc",
+                "C:\\Windows\\System32\\compmgmt.msc",
+                "C:\\Windows\\explorer.exe",
+                "C:\\Windows\\System32\\notepad.exe",
+            ] {
+                let r: String = direct(p);
+                println!("[direct] {p}: {r}");
+            }
+
+            println!("=== B. 扫描结果（UI 实际拿到的）===");
+            let apps = scan_installed_apps();
+            println!("[scan] total={}", apps.len());
+            for name in [
+                "clash-verge",
+                "chrome",
+                "cleanmgr",
+                "dfrgui",
+                "7zfm",
+                "explorer",
+            ] {
+                let r = match apps.iter().find(|a| a.process == name) {
+                    Some(a) => match &a.icon {
+                        Some(u) => stats(u),
+                        None => "icon=NONE".into(),
+                    },
+                    None => "not-found-in-scan".into(),
+                };
+                println!("[scan] {name}: {r}");
+            }
+
+            // === C. 导出 PNG 到磁盘供人工查看（决定性证据）===
+            println!("=== C. 导出 PNG ===");
+            let out_dir = std::path::Path::new("C:\\Users\\Admin\\AppData\\Local\\Temp");
+            for (name, proc) in [
+                ("clash-verge", "clash-verge"),
+                ("cleanmgr", "cleanmgr"),
+                ("eventvwr", "eventvwr"),
+                ("chrome", "chrome"),
+            ] {
+                let Some(app) = apps.iter().find(|a| a.process == proc) else {
+                    println!("[dump] {proc}: not found");
+                    continue;
+                };
+                let Some(url) = &app.icon else {
+                    println!("[dump] {proc}: icon=NONE");
+                    continue;
+                };
+                let b64 = url.strip_prefix("data:image/png;base64,").unwrap();
+                let bytes = base64::engine::general_purpose::STANDARD.decode(b64).unwrap();
+                let path = out_dir.join(format!("eyeguard-icon-{name}.png"));
+                std::fs::write(&path, &bytes).unwrap();
+                println!("[dump] {} → {} ({} bytes)", proc, path.display(), bytes.len());
+            }
         }
     }
 }
