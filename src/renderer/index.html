@@ -163,10 +163,12 @@
           <span>启用</span>
         </label>
       </div>
-      <p class="hint">这些应用进入前台时自动恢复原色（不干扰专业色彩判断），切走后自动恢复护眼（按进程名匹配，每行一个）</p>
-      <textarea id="colorsensitive-apps" rows="4" class="apps-input" spellcheck="false"></textarea>
+      <p class="hint">这些应用进入前台时自动恢复原色（不干扰专业色彩判断），切走后自动恢复护眼</p>
+      <input type="text" id="colorsensitive-search" class="apps-search" placeholder="搜索应用（如 photoshop、剪映）…" spellcheck="false" />
+      <div id="colorsensitive-list" class="apps-list" role="listbox" aria-label="已安装应用"></div>
+      <div id="colorsensitive-chosen" class="apps-chosen"></div>
       <p id="colorsensitive-status" class="note muted-line">默认关闭</p>
-      <p class="privacy">提示：亮度（背光）不受影响不动；仅色温滤镜被临时挂起，且不会修改你保存的开关设置。</p>
+      <p class="privacy">提示：亮度（背光）不受影响；仅色温滤镜被临时挂起，且不会修改你保存的开关设置。</p>
     </section>
 
     <section class="card">

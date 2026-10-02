@@ -38,7 +38,9 @@ const ambientAction = $('ambient-action');
 const ambientMode = $('ambient-mode');
 const ambientStatus = $('ambient-status');
 const colorSensitiveEnabled = $('colorsensitive-enabled');
-const colorSensitiveApps = $('colorsensitive-apps');
+const colorSensitiveSearch = $('colorsensitive-search');
+const colorSensitiveList = $('colorsensitive-list');
+const colorSensitiveChosen = $('colorsensitive-chosen');
 const colorSensitiveStatus = $('colorsensitive-status');
 
 // 模式色点（与各自色温语义对应：暖 → 冷）
@@ -480,6 +482,11 @@ window.eyeGuard.onAmbientState(renderAmbientState);
 
 // ---- 色彩敏感应用（W3）----
 
+// 当前选中的应用（进程名数组，唯一真源）
+let colorSensitiveApps = [];
+// 扫描到的已安装应用缓存（首次打开时拉取）
+let installedAppsCache = null;
+
 function saveColorSensitive(patch) {
   window.eyeGuard.updateSettings({ colorSensitive: patch }).catch((err) => {
     console.warn('[ui] 色彩敏感应用保存失败:', err.message);
@@ -491,11 +498,84 @@ function renderColorSensitiveStatus() {
     colorSensitiveStatus.textContent = '已关闭';
     return;
   }
-  const count = colorSensitiveApps.value
-    .split('\n')
-    .map((s) => s.trim())
-    .filter(Boolean).length;
-  colorSensitiveStatus.textContent = '监控中 · ' + count + ' 个应用';
+  colorSensitiveStatus.textContent = '监控中 · 已选 ' + colorSensitiveApps.length + ' 个应用';
+}
+
+/** 渲染已选列表（chips，点击移除） */
+function renderChosen() {
+  colorSensitiveChosen.textContent = '';
+  if (colorSensitiveApps.length === 0) {
+    const empty = document.createElement('span');
+    empty.className = 'apps-empty';
+    empty.textContent = '尚未选择应用——从下方搜索并勾选';
+    colorSensitiveChosen.appendChild(empty);
+    return;
+  }
+  for (const proc of colorSensitiveApps) {
+    // 已选里的显示名优先用扫描缓存里的；找不到就显示进程名
+    const known = installedAppsCache && installedAppsCache.find((a) => a.process === proc);
+    const chip = document.createElement('button');
+    chip.type = 'button';
+    chip.className = 'app-chip';
+    chip.title = '点击移除 ' + proc;
+    chip.textContent = (known ? known.name : proc) + ' ×';
+    chip.addEventListener('click', () => {
+      colorSensitiveApps = colorSensitiveApps.filter((p) => p !== proc);
+      saveColorSensitive({ apps: colorSensitiveApps });
+      renderChosen();
+      renderColorSensitiveList();
+      renderColorSensitiveStatus();
+    });
+    colorSensitiveChosen.appendChild(chip);
+  }
+}
+
+/** 渲染搜索结果列表（勾选） */
+function renderColorSensitiveList() {
+  if (!installedAppsCache) return;
+  const q = colorSensitiveSearch.value.trim().toLowerCase();
+  colorSensitiveList.textContent = '';
+
+  // 搜索结果：名称或进程名包含关键词；空查询显示全部（限 60 条防卡顿）
+  const filtered = installedAppsCache
+    .filter((a) => !q || a.name.toLowerCase().includes(q) || a.process.toLowerCase().includes(q))
+    .slice(0, 60);
+
+  if (filtered.length === 0) {
+    const none = document.createElement('p');
+    none.className = 'apps-empty';
+    none.textContent = q ? '没有匹配的应用——可尝试用英文名搜索' : '未扫描到应用';
+    colorSensitiveList.appendChild(none);
+    return;
+  }
+
+  for (const app of filtered) {
+    const checked = colorSensitiveApps.includes(app.process);
+    const row = document.createElement('label');
+    row.className = 'app-row' + (checked ? ' checked' : '');
+    const box = document.createElement('input');
+    box.type = 'checkbox';
+    box.checked = checked;
+    box.addEventListener('change', () => {
+      if (box.checked) {
+        if (!colorSensitiveApps.includes(app.process)) colorSensitiveApps.push(app.process);
+      } else {
+        colorSensitiveApps = colorSensitiveApps.filter((p) => p !== app.process);
+      }
+      saveColorSensitive({ apps: colorSensitiveApps });
+      renderChosen();
+      renderColorSensitiveList();
+      renderColorSensitiveStatus();
+    });
+    const nameSpan = document.createElement('span');
+    nameSpan.className = 'app-name';
+    nameSpan.textContent = app.name;
+    const procSpan = document.createElement('span');
+    procSpan.className = 'app-proc';
+    procSpan.textContent = app.process;
+    row.append(box, nameSpan, procSpan);
+    colorSensitiveList.appendChild(row);
+  }
 }
 
 colorSensitiveEnabled.addEventListener('change', () => {
@@ -503,14 +583,24 @@ colorSensitiveEnabled.addEventListener('change', () => {
   renderColorSensitiveStatus();
 });
 
-colorSensitiveApps.addEventListener('change', () => {
-  const apps = colorSensitiveApps.value
-    .split('\n')
-    .map((s) => s.trim())
-    .filter(Boolean);
-  saveColorSensitive({ apps });
-  renderColorSensitiveStatus();
-});
+colorSensitiveSearch.addEventListener('input', renderColorSensitiveList);
+// 懒加载：首次聚焦搜索框时才扫描（避免拖慢启动）
+colorSensitiveSearch.addEventListener('focus', ensureInstalledApps, { once: true });
+
+/** 首次展开时拉取已安装应用（懒加载；失败静默降级为已选列表手动输入态） */
+async function ensureInstalledApps() {
+  if (installedAppsCache) return;
+  colorSensitiveList.textContent = '正在扫描已安装应用…';
+  try {
+    const apps = await window.eyeGuard.listInstalledApps();
+    installedAppsCache = Array.isArray(apps) ? apps : [];
+  } catch (err) {
+    console.warn('[ui] 应用扫描失败:', err.message);
+    installedAppsCache = [];
+  }
+  renderColorSensitiveList();
+  renderChosen();
+}
 
 // ---- 主进程广播 ----
 
@@ -572,8 +662,12 @@ async function boot() {
   }
   if (settings && settings.colorSensitive) {
     colorSensitiveEnabled.checked = !!settings.colorSensitive.enabled;
-    colorSensitiveApps.value = (settings.colorSensitive.apps || []).join('\n');
+    colorSensitiveApps = Array.isArray(settings.colorSensitive.apps)
+      ? settings.colorSensitive.apps.slice()
+      : [];
+    renderChosen();
     renderColorSensitiveStatus();
+    renderColorSensitiveList();
   }
   renderSchedule();
 

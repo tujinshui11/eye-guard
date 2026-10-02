@@ -27,6 +27,7 @@
     breakAction: (name) => invoke('break_action', { name }),
     proposeAction: (name) => invoke('propose_action', { name }),
     getAmbientState: () => invoke('ambient_get_state'),
+    listInstalledApps: () => invoke('apps_list_installed'),
 
     // ---- 事件订阅（5）—— 事件名与 Electron 版一致 ----
     onPropose: (cb) => { listen('propose:update', (e) => cb(e.payload)); },

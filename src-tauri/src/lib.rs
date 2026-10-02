@@ -2,6 +2,7 @@
 //! 对照 Electron 版 src/main/index.js 的生命周期/装配职责
 
 pub mod ambient;
+pub mod appscan;
 pub mod appwatch;
 pub mod break_rt;
 pub mod break_timer;
@@ -53,6 +54,7 @@ pub fn run() {
             commands::app_get_auto_launch,
             commands::propose_action,
             commands::ambient_get_state,
+            commands::apps_list_installed,
         ])
         .setup(|app| {
             // 全局状态：设置 + display（含 dirty 自愈与启动状态 silent 恢复）

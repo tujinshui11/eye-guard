@@ -254,8 +254,7 @@ pub async fn display_restore(app: AppHandle) -> bool {
 
 /// 对照 modes:list（index.js:714）
 #[tauri::command]
-pub fn modes_list() -> Vec<Value> {
-    MODES
+pub fn modes_list() -> Vec<Value> {    MODES
         .iter()
         .map(|m| {
             json!({
@@ -438,4 +437,14 @@ pub fn propose_action(app: AppHandle, name: String) -> bool {
 #[tauri::command]
 pub fn ambient_get_state(app: AppHandle) -> Value {
     crate::ambient::monitor::ambient_state(&app)
+}
+
+// ---- 已安装应用扫描（色彩敏感应用选择器）----
+
+/// 扫描开始菜单已安装应用（供「色彩敏感应用」搜索选择器）
+///
+/// async：全量扫描 + COM 解析耗时数百毫秒，避免阻塞主线程。
+#[tauri::command]
+pub async fn apps_list_installed() -> Vec<crate::appscan::AppEntry> {
+    crate::appscan::scan_installed_apps()
 }
