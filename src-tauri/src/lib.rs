@@ -11,6 +11,7 @@ pub mod gamma;
 pub mod hotkeys;
 pub mod modes;
 pub mod overlay;
+pub mod presence;
 pub mod propose;
 pub mod schedule_rt;
 pub mod scheduler;

@@ -141,6 +141,52 @@ pub fn resume_breaks(app: &AppHandle) -> bool {
     ok
 }
 
+/// 更新托盘 tooltip（W2 借鉴 Stretchly：托盘图标悬停可见休息倒计时）
+///
+/// 仅在有状态变化时更新（内部比较上一次文本，避免无谓系统调用）。
+pub fn update_tray_tooltip(app: &AppHandle) {
+    use std::sync::Mutex;
+    use std::sync::OnceLock;
+    static LAST: OnceLock<Mutex<String>> = OnceLock::new();
+
+    let (state_str, remain) = {
+        let state = app.state::<SharedState>();
+        let st = state.lock().unwrap();
+        let snap = st.break_timer.get_state(now_ms());
+        (snap.state.as_str().to_string(), snap.remaining_seconds)
+    };
+
+    let text = match state_str.as_str() {
+        "working" => match remain {
+            Some(s) => {
+                let m = s / 60;
+                let sec = s % 60;
+                format!("护眼助手 · 距离休息 {m}:{sec:02}")
+            }
+            None => "护眼助手 · 工作中".to_string(),
+        },
+        "resting" => match remain {
+            Some(s) => format!("护眼助手 · 休息中 {s}s"),
+            None => "护眼助手 · 休息中".to_string(),
+        },
+        "alerting" => "护眼助手 · 该休息了".to_string(),
+        "paused" => "护眼助手 · 提醒已暂停".to_string(),
+        _ => "护眼助手".to_string(),
+    };
+
+    let last = LAST.get_or_init(|| Mutex::new(String::new()));
+    {
+        let mut guard = last.lock().unwrap();
+        if *guard == text {
+            return;
+        }
+        *guard = text.clone();
+    }
+    if let Some(tray) = app.tray_by_id("main") {
+        let _ = tray.set_tooltip(Some(&text));
+    }
+}
+
 /// 启动休息系统（对照 initBreakSystem + 1s tick 循环）
 pub fn start_break_system(app: AppHandle) {
     {
@@ -169,21 +215,50 @@ pub fn start_break_system(app: AppHandle) {
         );
     }
 
-    std::thread::spawn(move || loop {
-        std::thread::sleep(Duration::from_secs(1));
-        let now = now_ms();
-        let state = {
-            let state = app.state::<SharedState>();
-            let mut st = state.lock().unwrap();
-            st.break_timer.tick(now);
-            st.break_timer.get_state(now).state
-        };
-        // 幂等窗口动作：每 tick 按当前状态直接决策（修复「命令变更漏检」根因，
-        // 见 v0.2.1：跳过/推迟直接改状态时，旧的变化检测会漏掉窗口动作）
-        match window_action_for(state) {
-            WindowAction::Show => show_break_window(&app),
-            WindowAction::PushUpdate => push_break_update(&app),
-            WindowAction::Hide => hide_break_window(&app),
+    std::thread::spawn(move || {
+        let mut last_tick = now_ms();
+        loop {
+            std::thread::sleep(Duration::from_secs(1));
+            let now = now_ms();
+            let elapsed = (now - last_tick).max(0);
+            last_tick = now;
+
+            // W2: 全屏/演示免打扰 + 空闲监测
+            // - 全屏（游戏/视频/演示）时：不弹卡片（alerting 状态保持，但不显示窗口）
+            // - 空闲（键鼠 2 分钟无输入）时：工作时间顺延（人不在不算用眼）
+            let fullscreen = crate::presence::refresh_fullscreen_state();
+            let idle = crate::presence::is_idle();
+
+            let state = {
+                let state = app.state::<SharedState>();
+                let mut st = state.lock().unwrap();
+                if idle {
+                    // 离开：本 tick 不计入工作时间（仅 Working 有效）
+                    st.break_timer.shift_phase_end(elapsed);
+                }
+                st.break_timer.tick(now);
+                st.break_timer.get_state(now).state
+            };
+            // 幂等窗口动作：每 tick 按当前状态直接决策（修复「命令变更漏检」根因，
+            // 见 v0.2.1：跳过/推迟直接改状态时，旧的变化检测会漏掉窗口动作）
+            // W2: 全屏时压制 Show/Update（不打断沉浸场景）；Hide 仍执行
+            match window_action_for(state) {
+                WindowAction::Show => {
+                    if fullscreen {
+                        // 全屏中：不打断；离开全屏后由下一次 tick 补弹
+                    } else {
+                        show_break_window(&app);
+                    }
+                }
+                WindowAction::PushUpdate => {
+                    if !fullscreen {
+                        push_break_update(&app);
+                    }
+                }
+                WindowAction::Hide => hide_break_window(&app),
+            }
+            // W2: 托盘悬停显示倒计时（每秒；内部去重）
+            update_tray_tooltip(&app);
         }
     });
     // 注：睡眠唤醒对齐由 scheduler 侧负责；休息状态机为时间戳基准，tick 频率不影响正确性。

@@ -190,6 +190,19 @@ impl BreakTimer {
         }
     }
 
+    /// 顺延当前工作阶段结束时间（空闲不计入语义：用户离开时本 tick 不计入工作时间）
+    ///
+    /// 仅 Working 状态生效；Paused/Resting/Alerting 为无操作（幂等）。
+    /// 供 break_rt 的空闲监测调用：用户离开的时段不应累计为用眼时间。
+    pub fn shift_phase_end(&mut self, delta_ms: i64) {
+        if self.state != BreakState::Working {
+            return;
+        }
+        if let Some(end) = self.phase_end_ts {
+            self.phase_end_ts = Some(end + delta_ms.max(0));
+        }
+    }
+
     pub fn get_state(&self, now: i64) -> BreakSnapshot {
         let counting = matches!(self.state, BreakState::Working | BreakState::Resting);
         let remaining_seconds = if counting {
@@ -379,5 +392,42 @@ mod tests {
 
         assert!(h.timer.skip(h.t));
         assert_eq!(h.state(), BreakState::Working);
+    }
+
+    #[test]
+    fn shift_phase_end_delays_alert() {
+        let mut h = Harness::new();
+        h.timer.start(h.t);
+        // 顺延 30s：原 100s 到点 → 现在 130s 到点
+        h.timer.shift_phase_end(30_000);
+
+        h.set(129_999);
+        h.timer.tick(h.t);
+        assert_eq!(h.state(), BreakState::Working, "顺延后未到点");
+
+        h.set(130_000);
+        h.timer.tick(h.t);
+        assert_eq!(h.state(), BreakState::Alerting, "顺延后到时触发");
+    }
+
+    #[test]
+    fn shift_phase_end_noop_when_not_working() {
+        let mut h = Harness::new();
+        // idle 状态：无操作
+        h.timer.shift_phase_end(10_000);
+        assert_eq!(h.state(), BreakState::Idle);
+
+        // paused 状态：无操作
+        h.timer.start(h.t);
+        h.timer.pause(h.t, None);
+        h.timer.shift_phase_end(10_000);
+        assert_eq!(h.state(), BreakState::Paused);
+        h.timer.resume(h.t);
+        h.set(99_999);
+        h.timer.tick(h.t);
+        assert_eq!(h.state(), BreakState::Working, "暂停期间的顺延不应影响剩余时长");
+        h.set(100_000);
+        h.timer.tick(h.t);
+        assert_eq!(h.state(), BreakState::Alerting);
     }
 }
