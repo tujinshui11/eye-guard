@@ -37,6 +37,9 @@ const ambientThreshold = $('ambient-threshold');
 const ambientAction = $('ambient-action');
 const ambientMode = $('ambient-mode');
 const ambientStatus = $('ambient-status');
+const colorSensitiveEnabled = $('colorsensitive-enabled');
+const colorSensitiveApps = $('colorsensitive-apps');
+const colorSensitiveStatus = $('colorsensitive-status');
 
 // 模式色点（与各自色温语义对应：暖 → 冷）
 const MODE_SWATCH = {
@@ -475,6 +478,40 @@ ambientMode.addEventListener('change', () => {
 
 window.eyeGuard.onAmbientState(renderAmbientState);
 
+// ---- 色彩敏感应用（W3）----
+
+function saveColorSensitive(patch) {
+  window.eyeGuard.updateSettings({ colorSensitive: patch }).catch((err) => {
+    console.warn('[ui] 色彩敏感应用保存失败:', err.message);
+  });
+}
+
+function renderColorSensitiveStatus() {
+  if (!colorSensitiveEnabled.checked) {
+    colorSensitiveStatus.textContent = '已关闭';
+    return;
+  }
+  const count = colorSensitiveApps.value
+    .split('\n')
+    .map((s) => s.trim())
+    .filter(Boolean).length;
+  colorSensitiveStatus.textContent = '监控中 · ' + count + ' 个应用';
+}
+
+colorSensitiveEnabled.addEventListener('change', () => {
+  saveColorSensitive({ enabled: colorSensitiveEnabled.checked });
+  renderColorSensitiveStatus();
+});
+
+colorSensitiveApps.addEventListener('change', () => {
+  const apps = colorSensitiveApps.value
+    .split('\n')
+    .map((s) => s.trim())
+    .filter(Boolean);
+  saveColorSensitive({ apps });
+  renderColorSensitiveStatus();
+});
+
 // ---- 主进程广播 ----
 
 window.eyeGuard.onDisplayChanged((s) => {
@@ -532,6 +569,11 @@ async function boot() {
     ambientThreshold.value = String(settings.ambient.dropThresholdPercent || 35);
     ambientAction.value = settings.ambient.action || 'notify';
     if (settings.ambient.autoModeId) ambientMode.value = settings.ambient.autoModeId;
+  }
+  if (settings && settings.colorSensitive) {
+    colorSensitiveEnabled.checked = !!settings.colorSensitive.enabled;
+    colorSensitiveApps.value = (settings.colorSensitive.apps || []).join('\n');
+    renderColorSensitiveStatus();
   }
   renderSchedule();
 

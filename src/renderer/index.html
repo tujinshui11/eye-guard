@@ -157,6 +157,20 @@
 
     <section class="card">
       <div class="card-head">
+        <h2>色彩敏感应用</h2>
+        <label class="switch mini">
+          <input type="checkbox" id="colorsensitive-enabled" />
+          <span>启用</span>
+        </label>
+      </div>
+      <p class="hint">这些应用进入前台时自动恢复原色（不干扰专业色彩判断），切走后自动恢复护眼（按进程名匹配，每行一个）</p>
+      <textarea id="colorsensitive-apps" rows="4" class="apps-input" spellcheck="false"></textarea>
+      <p id="colorsensitive-status" class="note muted-line">默认关闭</p>
+      <p class="privacy">提示：亮度（背光）不受影响不动；仅色温滤镜被临时挂起，且不会修改你保存的开关设置。</p>
+    </section>
+
+    <section class="card">
+      <div class="card-head">
         <h2>通用</h2>
       </div>
       <div class="field-row">

@@ -2,6 +2,7 @@
 //! 对照 Electron 版 src/main/index.js 的生命周期/装配职责
 
 pub mod ambient;
+pub mod appwatch;
 pub mod break_rt;
 pub mod break_timer;
 pub mod brightness;
@@ -91,6 +92,9 @@ pub fn run() {
 
             // 休息提醒系统（1s tick + 窗口）
             break_rt::start_break_system(handle.clone());
+
+            // W3：色彩敏感应用监控（2s 轮询；白名单应用在前台时自动挂起滤镜）
+            appwatch::start_appwatch(handle.clone());
 
             // 托盘 + 全局热键
             if let Err(e) = tray::create_tray(&handle) {

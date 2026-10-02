@@ -40,6 +40,10 @@ pub fn defaults() -> Value {
             "action": "notify",
             "autoModeId": "night",
             "cooldownMinutes": 15
+        },
+        "colorSensitive": {
+            "enabled": false,
+            "apps": ["photoshop", "illustrator", "adobe premiere pro", "afterfx", "resolve", "lightroom", "mspaint", "snippingtool"]
         }
     })
 }
