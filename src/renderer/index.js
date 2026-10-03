@@ -726,6 +726,10 @@ window.addEventListener('DOMContentLoaded', boot);
 // ---- 板块导航（分板块切换：显示调节 / 休息提醒 / 自动化 / 通用）----
 
 function switchPanel(name) {
+  // 切到统计板块时刷新数据（每次进入都取最新）
+  if (name === 'stats' && typeof refreshUsageStats === 'function') {
+    refreshUsageStats();
+  }
   document.querySelectorAll('.panel').forEach((p) => {
     p.classList.toggle('active', p.dataset.panel === name);
   });

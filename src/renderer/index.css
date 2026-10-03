@@ -1051,3 +1051,80 @@ html[data-theme="light"] .select-pop {
 @media (prefers-reduced-motion: reduce) {
   .panel.active { animation: none; }
 }
+
+/* ---- 用眼统计板块 ---- */
+
+.stats-hero {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 12px;
+  margin-bottom: 14px;
+}
+
+.hero-item {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  box-shadow: var(--card-shadow);
+  padding: 16px 14px;
+  text-align: center;
+}
+
+.hero-value {
+  font-size: 26px;
+  font-weight: 700;
+  color: var(--accent);
+  font-variant-numeric: tabular-nums;
+  line-height: 1.15;
+}
+
+.hero-label {
+  margin-top: 4px;
+  font-size: 11px;
+  color: var(--muted);
+  letter-spacing: 0.2px;
+}
+
+.chart {
+  width: 100%;
+  overflow: hidden;
+}
+
+.chart-empty {
+  margin: 10px 2px;
+  font-size: 11.5px;
+  color: var(--muted);
+}
+
+.stats-legend {
+  display: flex;
+  gap: 16px;
+  margin-top: 8px;
+  font-size: 10.5px;
+  color: var(--muted);
+}
+
+.stats-legend .dot {
+  display: inline-block;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  margin-right: 4px;
+  vertical-align: 1px;
+}
+
+.dot-rest { background: var(--accent); }
+.dot-skip { background: var(--muted); }
+
+.stats-breaks {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 14px;
+  margin-top: 8px;
+  font-size: 10.5px;
+  color: var(--muted);
+}
+
+@media (max-width: 620px) {
+  .stats-hero { grid-template-columns: 1fr; }
+}

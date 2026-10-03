@@ -28,6 +28,9 @@
     proposeAction: (name) => invoke('propose_action', { name }),
     getAmbientState: () => invoke('ambient_get_state'),
     listInstalledApps: () => invoke('apps_list_installed'),
+    // 用眼统计概览（今日 + 近 7 日）
+    usageSummary: () => invoke('usage_get_summary'),
+
     // 日落跟随：今日日出日落时刻 / IP 自动定位
     sunTimesToday: () => invoke('sun_times_today'),
     sunAutolocate: () => invoke('sun_autolocate'),

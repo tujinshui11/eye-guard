@@ -24,6 +24,7 @@
         <button class="nav-item active" data-panel-target="display">显示调节</button>
         <button class="nav-item" data-panel-target="rest">休息提醒</button>
         <button class="nav-item" data-panel-target="auto">自动化</button>
+        <button class="nav-item" data-panel-target="stats">用眼统计</button>
         <button class="nav-item" data-panel-target="general">通用</button>
       </nav>
       <div class="nav-foot">
@@ -215,6 +216,50 @@
         </section>
       </div>
 
+      <!-- ======== 用眼统计 ======== -->
+      <div class="panel" data-panel="stats">
+        <header class="panel-head">
+          <h2>用眼统计</h2>
+          <p class="hint">护眼生效时长与休息完成情况 · 本机记录，不上传</p>
+        </header>
+
+        <section class="stats-hero">
+          <div class="hero-item">
+            <div class="hero-value" id="stats-today-hours">0.0</div>
+            <div class="hero-label">今日护眼（小时）</div>
+          </div>
+          <div class="hero-item">
+            <div class="hero-value" id="stats-week-hours">0.0</div>
+            <div class="hero-label">本周累计（小时）</div>
+          </div>
+          <div class="hero-item">
+            <div class="hero-value" id="stats-breaks">0</div>
+            <div class="hero-label">本周完成休息</div>
+          </div>
+        </section>
+
+        <section class="card">
+          <div class="card-head">
+            <h2>今日时段分布</h2>
+            <span class="hint" id="stats-hourly-hint">护眼生效时长 · 按小时</span>
+          </div>
+          <div id="stats-hourly" class="chart"></div>
+        </section>
+
+        <section class="card">
+          <div class="card-head">
+            <h2>近 7 日趋势</h2>
+            <span class="hint" id="stats-trend-hint">护眼时长（小时）</span>
+          </div>
+          <div id="stats-trend" class="chart"></div>
+          <div class="stats-legend">
+            <span><i class="dot dot-rest"></i>完成休息</span>
+            <span><i class="dot dot-skip"></i>跳过休息</span>
+          </div>
+          <div id="stats-breaks-detail" class="stats-breaks"></div>
+        </section>
+      </div>
+
       <!-- ======== 通用 ======== -->
       <div class="panel" data-panel="general">
         <header class="panel-head">
@@ -253,6 +298,7 @@
   </div>
 
   <script src="shim.js"></script>
+  <script src="stats.js"></script>
   <script src="index.js"></script>
 </body>
 </html>

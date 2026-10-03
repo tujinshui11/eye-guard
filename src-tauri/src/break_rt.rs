@@ -222,6 +222,7 @@ pub fn start_break_system(app: AppHandle) {
             let now = now_ms();
             let elapsed = (now - last_tick).max(0);
             last_tick = now;
+            let mut rest_completed = false;
 
             // W2: 全屏/演示免打扰 + 空闲监测
             // - 全屏（游戏/视频/演示）时：不弹卡片（alerting 状态保持，但不显示窗口）
@@ -236,9 +237,18 @@ pub fn start_break_system(app: AppHandle) {
                     // 离开：本 tick 不计入工作时间（仅 Working 有效）
                     st.break_timer.shift_phase_end(elapsed);
                 }
+                let before = st.break_timer.get_state(now).state;
                 st.break_timer.tick(now);
-                st.break_timer.get_state(now).state
+                let after = st.break_timer.get_state(now).state;
+                // 休息自然结束（Resting → Working）计入"完成一次休息"
+                if before == BreakState::Resting && after == BreakState::Working {
+                    rest_completed = true;
+                }
+                after
             };
+            if rest_completed {
+                crate::usage::record_break_completed(&app);
+            }
             // 幂等窗口动作：每 tick 按当前状态直接决策（修复「命令变更漏检」根因，
             // 见 v0.2.1：跳过/推迟直接改状态时，旧的变化检测会漏掉窗口动作）
             // W2: 全屏时压制 Show/Update（不打断沉浸场景）；Hide 仍执行

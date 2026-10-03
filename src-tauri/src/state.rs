@@ -41,6 +41,8 @@ pub struct AppState {
     pub app_suspended: Option<String>,
     /// 用户最近一次手动调整档位/色温/亮度的时间戳 ms（日落跟随静默期判定用；仅内存）
     pub last_manual_at: Option<i64>,
+    /// 用眼统计（内存副本；每次 tick 采样后与磁盘同步）
+    pub usage: crate::usage::UsageStats,
 }
 
 pub type SharedState = Mutex<AppState>;
@@ -103,6 +105,7 @@ pub fn bootstrap() -> AppState {
         brightness: BrightnessController::new(WmiBacklight),
         app_suspended: None,
         last_manual_at: None,
+        usage: crate::usage::UsageStats::load(&dir),
     }
 }
 

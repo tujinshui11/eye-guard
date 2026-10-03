@@ -24,6 +24,7 @@ pub mod temperature;
 pub mod sun;
 pub mod sun_rt;
 pub mod tray;
+pub mod usage;
 
 /// 测试间共享的 Shell 串行锁。
 ///
@@ -72,6 +73,7 @@ pub fn run() {
             commands::apps_list_installed,
             commands::sun_times_today,
             commands::sun_autolocate,
+            commands::usage_get_summary,
             commands::window_minimize,
             commands::window_hide,
         ])

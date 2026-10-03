@@ -111,6 +111,8 @@ pub fn start_scheduler(app: AppHandle) {
             check_schedule_once(&app, now);
             // 日落跟随过渡检查（共用同一 tick；jumped=睡眠唤醒时走快速补过渡）
             crate::sun_rt::check_sun_follow(&app, now, jumped);
+            // 用眼统计采样：睡眠唤醒（jumped）不补记，避免把睡眠时长算成用眼
+            crate::usage::sample(&app, if jumped { 0 } else { 30 });
         }
     });
     eprintln!("[schedule] tick 已启动（30s）");

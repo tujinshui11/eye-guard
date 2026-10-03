@@ -390,6 +390,7 @@ pub fn break_action(app: AppHandle, name: String) -> bool {
                 st.break_timer.skip(now)
             };
             if ok {
+                crate::usage::record_break_skipped(&app);
                 crate::break_rt::hide_break_window(&app); // 即时关窗（v0.2.1：修复关不掉）
             }
             ok
@@ -467,6 +468,13 @@ pub fn window_minimize(app: AppHandle) {
     if let Some(w) = app.get_webview_window("main") {
         let _ = w.minimize();
     }
+}
+
+/// 用眼统计概览（今日 + 近 7 日序列，供前端图表）
+#[tauri::command]
+pub fn usage_get_summary(state: State<'_, SharedState>) -> Value {
+    let st = state.lock().unwrap();
+    st.usage.summary_json(&crate::usage::today_key())
 }
 
 /// 关闭按钮 = 隐藏到托盘（与系统关闭行为一致）
