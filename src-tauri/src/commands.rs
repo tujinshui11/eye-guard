@@ -498,3 +498,29 @@ pub fn sun_times_today(state: State<'_, SharedState>) -> Value {
     let t = crate::sun::sun_times(lat, lon, tz, now.year(), now.month(), now.day());
     json!({ "ok": true, "sunrise": t.sunrise_min, "sunset": t.sunset_min })
 }
+
+/// 自动定位（IP 城市级）：优先联网定位；失败时前端降级为手动选城市。
+/// 使用 ip-api.com（免费版仅 http）；只取经纬度与城市名，不存储。
+#[tauri::command]
+pub async fn sun_autolocate() -> Value {
+    let url = "http://ip-api.com/json/?fields=status,country,city,lat,lon";
+    let client = match reqwest::Client::builder()
+        .timeout(std::time::Duration::from_secs(4))
+        .build()
+    {
+        Ok(c) => c,
+        Err(e) => return json!({ "ok": false, "reason": e.to_string() }),
+    };
+    match client.get(url).send().await {
+        Ok(resp) => match resp.json::<Value>().await {
+            Ok(v) if v.get("status").and_then(|s| s.as_str()) == Some("success") => json!({
+                "ok": true,
+                "lat": v.get("lat"),
+                "lon": v.get("lon"),
+                "city": v.get("city")
+            }),
+            _ => json!({ "ok": false, "reason": "bad-response" }),
+        },
+        Err(e) => json!({ "ok": false, "reason": e.to_string() }),
+    }
+}

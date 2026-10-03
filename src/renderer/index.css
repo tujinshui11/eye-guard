@@ -1013,3 +1013,20 @@ html[data-theme="light"] .select-pop {
   background: rgba(255, 255, 255, 0.97);
   box-shadow: 0 14px 40px rgba(80, 60, 40, 0.25), inset 0 1px 0 rgba(255, 255, 255, 0.6);
 }
+
+/* ---- 自动定位小按钮（日落跟随） ---- */
+.locate-btn {
+  font: inherit;
+  font-size: 11.5px;
+  color: var(--accent);
+  background: var(--accent-soft);
+  border: 1px solid var(--accent-line);
+  border-radius: 8px;
+  padding: 5px 10px;
+  cursor: pointer;
+  transition: background 0.15s, opacity 0.15s;
+}
+
+.locate-btn:hover { background: var(--accent-line); }
+
+.locate-btn:disabled { opacity: 0.5; cursor: default; }

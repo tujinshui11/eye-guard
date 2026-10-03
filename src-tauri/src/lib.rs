@@ -71,6 +71,7 @@ pub fn run() {
             commands::ambient_get_state,
             commands::apps_list_installed,
             commands::sun_times_today,
+            commands::sun_autolocate,
             commands::window_minimize,
             commands::window_hide,
         ])

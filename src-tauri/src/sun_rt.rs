@@ -10,7 +10,7 @@
 use crate::sun::{lerp, sun_times, transition_progress};
 use chrono::{Datelike, Timelike};
 use std::sync::Mutex;
-use tauri::{AppHandle, Manager};
+use tauri::{AppHandle, Emitter, Manager};
 
 /// 过渡方向：Dusk=日落变暖，Dawn=日出回升
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -96,9 +96,6 @@ fn read_config(app: &AppHandle) -> Option<(f64, f64, String, f64)> {
 /// 手动操作静默期（毫秒）：用户手动调整后此时长内不覆盖
 const MANUAL_GRACE_MS: i64 = 60 * 60 * 1000;
 
-/// 唤醒快速收敛窗（毫秒）：睡眠跨窗后补过渡用
-const WAKE_CATCHUP_MS: i64 = 3 * 60 * 1000;
-
 /// 单次检查（由 schedule tick 调用）
 pub fn check_sun_follow(app: &AppHandle, now_ms: i64, jumped: bool) {
     let Some((lat, lon, target_id, window_min)) = read_config(app) else {
@@ -124,6 +121,28 @@ pub fn check_sun_follow(app: &AppHandle, now_ms: i64, jumped: bool) {
 
     let now_min = now.hour() as f64 * 60.0 + now.minute() as f64 + now.second() as f64 / 60.0;
     let Some(st) = resolve_transition(now_min, sunrise, sunset, window_min) else {
+        // 睡眠唤醒且已越过日落/日出（错过整个窗口）：直接收敛到应处值。
+        // 唤醒瞬间用户刚睁眼、对屏幕状态无预期，此处瞬间应用不构成突兀——
+        // 比"3 分钟补过渡动画"简单且诚实（旧实现的分支恒为 no-op，已移除）。
+        if jumped {
+            if let Some(mode) = crate::modes::get_mode(&target_id) {
+                let night_side = now_min > sunset || now_min < sunrise;
+                let (k, b) = if night_side {
+                    (mode.kelvin as f64, mode.brightness)
+                } else {
+                    (6500.0, 100)
+                };
+                let cur = {
+                    let state = app.state::<Mutex<crate::state::AppState>>();
+                    let stt = state.lock().unwrap();
+                    stt.display.current_temperature
+                };
+                if (cur - k).abs() >= 1.0 {
+                    apply_sun_ephemeral(app, k, b);
+                    eprintln!("[sun] 唤醒收敛 → {k:.0}K（错过过渡窗口）");
+                }
+            }
+        }
         return;
     };
 
@@ -141,33 +160,41 @@ pub fn check_sun_follow(app: &AppHandle, now_ms: i64, jumped: bool) {
         TransitionDir::Dawn => (6500.0_f64, 100.0_f64),
     };
 
-    // 唤醒补过渡：跨窗醒来时用 3 分钟快速收敛替代瞬间跳变
-    let progress = if jumped && st.progress > 0.0 && st.progress < 1.0 {
-        // 按 3 分钟窗口重新计算进度（从当前 tick 起算）
-        transition_progress(0, WAKE_CATCHUP_MS).max(st.progress.min(0.9))
-    } else {
-        st.progress
-    };
-
+    let progress = st.progress;
     let kelvin = lerp(from_k, to_k, progress);
-    let brightness = lerp(from_b, to_b, brightness_progress(progress));
+    let brightness = lerp(from_b, to_b, brightness_progress(progress)).round() as u32;
 
-    // 幂等：与当前值差 < 1K 不重复 apply
-    let current_k = {
+    // 幂等：色温与亮度都与当前值一致时跳过（避免无谓的 gamma 重写）
+    {
         let state = app.state::<Mutex<crate::state::AppState>>();
-        let st = state.lock().unwrap();
-        st.display.current_temperature
-    };
-    if (current_k - kelvin).abs() < 1.0 {
-        return;
+        let stt = state.lock().unwrap();
+        if (stt.display.current_temperature - kelvin).abs() < 1.0
+            && stt.overlay_brightness == brightness
+        {
+            return;
+        }
     }
 
-    crate::commands::set_temperature_with_app(app, kelvin, "sunfollow");
-    let _ = brightness;
+    apply_sun_ephemeral(app, kelvin, brightness);
     eprintln!(
-        "[sun] {:?} p={:.3} → {:.0}K（日落 {:.0} 分 / 现在 {:.0} 分）",
-        st.dir, progress, kelvin, sunset, now_min
+        "[sun] {:?} p={:.3} → {:.0}K / {}%（日落 {:.0} 分 / 现在 {:.0} 分）",
+        st.dir, progress, kelvin, brightness, sunset, now_min
     );
+}
+
+/// 日落跟随的临时应用路径：只改显示层（gamma + 背光 + 黑纱），**不写 settings**
+/// （避免把伪模式名写进 settings.modeId——审查 HIGH-3；同时让亮度错峰真正落地——HIGH-1）
+fn apply_sun_ephemeral(app: &AppHandle, kelvin: f64, brightness: u32) {
+    let (alpha, payload) = {
+        let state = app.state::<Mutex<crate::state::AppState>>();
+        let mut st = state.lock().unwrap();
+        let _ = st.display.apply(kelvin);
+        let (_outcome, alpha) = st.brightness.apply(brightness);
+        st.overlay_brightness = brightness;
+        (alpha, crate::state::display_payload(&st))
+    };
+    crate::overlay::apply_mask_alpha(app, alpha);
+    let _ = app.emit("display:changed", payload);
 }
 
 // ============================================================
