@@ -24,6 +24,21 @@ jobs:
       - name: frontend contract test
         run: node --test tests/theme.test.js
 
+  # 跨平台编译验证：macOS 走 platform/stub 降级实现（功能受限但须编译通过）
+  # 这是"没有 Mac 也能验证 macOS 侧代码"的通道
+  macos-check:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
+      - name: cargo check (macOS)
+        run: cargo check --manifest-path src-tauri/Cargo.toml
+      - name: cargo test (macOS, 平台无关单测)
+        run: cargo test --manifest-path src-tauri/Cargo.toml --lib
+
   build:
     needs: [test]
     runs-on: windows-latest
@@ -104,9 +119,9 @@ jobs:
       - name: create release
         uses: softprops/action-gh-release@v2
         with:
-          name: "护眼助手 ${{ github.ref_name }}"
+          name: "艾斯 ${{ github.ref_name }}"
           body: |
-            ## 护眼助手 ${{ github.ref_name }}（Rust/Tauri 重写版）
+            ## 艾斯 ${{ github.ref_name }}（Rust/Tauri 重写版）
 
             - **NSIS 安装器**（`*setup.exe`）：双击安装；内置 WebView2 bootstrapper——目标机器缺组件时自动补装。
             - **便携版 zip**：解压即用；包内含使用说明与 WebView2 离线补装引导。

@@ -1,7 +1,7 @@
 {
   "name": "eye-guard",
   "productName": "护眼助手",
-  "version": "0.2.2",
+  "version": "0.3.0",
   "description": "护眼助手：屏幕色温调节 / 亮度调节 / 定时休息提醒（Windows 桌面，Rust/Tauri 实现）",
   "private": true,
   "license": "MIT",

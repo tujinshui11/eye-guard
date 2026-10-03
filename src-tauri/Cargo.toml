@@ -1,6 +1,6 @@
 [package]
 name = "eye-guard"
-version = "0.2.2"
+version = "0.3.0"
 description = "护眼助手：屏幕色温/亮度调节 + 定时休息提醒（Windows 桌面）"
 edition = "2021"
 license = "MIT"
