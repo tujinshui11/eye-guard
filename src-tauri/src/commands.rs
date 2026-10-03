@@ -476,3 +476,25 @@ pub fn window_hide(app: AppHandle) {
         let _ = w.hide();
     }
 }
+
+/// 今日日出日落（当地分钟数；供前端显示"今日日落 17:54 · 17:00 开始过渡"）
+#[tauri::command]
+pub fn sun_times_today(state: State<'_, SharedState>) -> Value {
+    use chrono::Datelike;
+    let (lat, lon) = {
+        let st = state.lock().unwrap();
+        let s = st.settings.get();
+        let sun = s.get("sunFollow");
+        (
+            sun.and_then(|v| v.get("lat")).and_then(|v| v.as_f64()),
+            sun.and_then(|v| v.get("lon")).and_then(|v| v.as_f64()),
+        )
+    };
+    let Some((lat, lon)) = lat.zip(lon) else {
+        return json!({ "ok": false, "reason": "no-location" });
+    };
+    let now = chrono::Local::now();
+    let tz = now.offset().local_minus_utc() as f64 / 3600.0;
+    let t = crate::sun::sun_times(lat, lon, tz, now.year(), now.month(), now.day());
+    json!({ "ok": true, "sunrise": t.sunrise_min, "sunset": t.sunset_min })
+}

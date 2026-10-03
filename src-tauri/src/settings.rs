@@ -24,6 +24,13 @@ pub fn defaults() -> Value {
         "hotkeys": { "tempUp": "Control+Alt+Up", "tempDown": "Control+Alt+Down" },
         "autoLaunch": false,
         "pausedUntil": null,
+        "sunFollow": {
+            "enabled": false,
+            "lat": null,
+            "lon": null,
+            "targetModeId": "evening",
+            "windowMinutes": 60
+        },
         "schedule": {
             "enabled": false,
             "entries": [

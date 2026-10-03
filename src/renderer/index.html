@@ -188,6 +188,39 @@
           </div>
           <p id="schedule-note" class="note hidden"></p>
         </section>
+
+        <section class="card">
+          <div class="card-head">
+            <h2>日落跟随</h2>
+            <label class="switch mini">
+              <input type="checkbox" id="sun-enabled" />
+              <span>启用</span>
+            </label>
+          </div>
+          <p class="hint">日落前自动变暖、日出后回升，随季节逐日自动跟随（按所在城市计算，无需联网）</p>
+          <div class="field-row">
+            <label class="field">城市
+              <select id="sun-city"></select>
+            </label>
+            <label class="field">目标档
+              <select id="sun-target">
+                <option value="evening">傍晚（4500K）</option>
+                <option value="night">夜晚（3400K）</option>
+                <option value="deepnight">深夜（2700K）</option>
+              </select>
+            </label>
+          </div>
+          <div class="field-row">
+            <label class="field">过渡时长
+              <select id="sun-window">
+                <option value="30">30 分钟</option>
+                <option value="60">60 分钟</option>
+                <option value="120">120 分钟</option>
+              </select>
+            </label>
+          </div>
+          <p id="sun-note" class="note muted-line">未设置位置</p>
+        </section>
       </div>
 
       <!-- ======== 通用 ======== -->

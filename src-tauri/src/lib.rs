@@ -70,6 +70,7 @@ pub fn run() {
             commands::propose_action,
             commands::ambient_get_state,
             commands::apps_list_installed,
+            commands::sun_times_today,
             commands::window_minimize,
             commands::window_hide,
         ])

@@ -808,3 +808,102 @@ document.addEventListener('wheel', closeSelectPop, { passive: true });
 document.querySelectorAll('.nav-item').forEach((btn) => {
   btn.addEventListener('click', closeSelectPop);
 });
+
+// ---- 日落跟随（自动化板块）----
+
+// 预设城市坐标（lat, lon）——用户选城市一次，之后完全离线
+const SUN_CITIES = [
+  { name: '北京', lat: 39.90, lon: 116.41 },
+  { name: '上海', lat: 31.23, lon: 121.47 },
+  { name: '广州', lat: 23.13, lon: 113.26 },
+  { name: '深圳', lat: 22.54, lon: 114.06 },
+  { name: '成都', lat: 30.57, lon: 104.07 },
+  { name: '杭州', lat: 30.27, lon: 120.16 },
+  { name: '武汉', lat: 30.59, lon: 114.31 },
+  { name: '西安', lat: 34.34, lon: 108.94 },
+  { name: '沈阳', lat: 41.80, lon: 123.43 },
+  { name: '乌鲁木齐', lat: 43.83, lon: 87.62 }
+];
+
+function fmtMinutes(m) {
+  if (typeof m !== 'number' || !isFinite(m)) return '--:--';
+  let t = Math.round(m);
+  t = ((t % 1440) + 1440) % 1440;
+  const h = Math.floor(t / 60);
+  const mm = String(t % 60).padStart(2, '0');
+  return String(h).padStart(2, '0') + ':' + mm;
+}
+
+function renderSunNote(sun) {
+  const el = $('sun-note');
+  if (!el) return;
+  if (!sun || typeof sun.lat !== 'number') {
+    el.textContent = '未设置位置';
+    return;
+  }
+  window.eyeGuard
+    .sunTimesToday()
+    .then((t) => {
+      if (!t || !t.ok || typeof t.sunset !== 'number') {
+        el.textContent = '未设置位置';
+        return;
+      }
+      const w = Number(sun.windowMinutes) || 60;
+      el.textContent =
+        '今日日落 ' + fmtMinutes(t.sunset) + ' · ' + fmtMinutes(t.sunset - w) + ' 开始过渡';
+    })
+    .catch(() => {
+      el.textContent = '日落时间暂不可用';
+    });
+}
+
+function bindSunFollow(settings) {
+  const sun = (settings && settings.sunFollow) || {};
+  const enabled = $('sun-enabled');
+  const city = $('sun-city');
+  const target = $('sun-target');
+  const win = $('sun-window');
+  if (!enabled || !city || !target || !win) return;
+
+  // 填充城市下拉
+  city.innerHTML = '';
+  SUN_CITIES.forEach((c, i) => {
+    const opt = document.createElement('option');
+    opt.value = String(i);
+    opt.textContent = c.name;
+    city.appendChild(opt);
+  });
+
+  const cur = SUN_CITIES.findIndex((c) => Math.abs(c.lat - (sun.lat || 999)) < 0.01);
+  if (cur >= 0) city.value = String(cur);
+  enabled.checked = !!sun.enabled;
+  if (sun.targetModeId) target.value = sun.targetModeId;
+  if (sun.windowMinutes) win.value = String(sun.windowMinutes);
+
+  const commit = () => {
+    const c = SUN_CITIES[Number(city.value)] || SUN_CITIES[0];
+    const patch = {
+      sunFollow: {
+        enabled: enabled.checked,
+        lat: c.lat,
+        lon: c.lon,
+        targetModeId: target.value,
+        windowMinutes: Number(win.value) || 60
+      }
+    };
+    window.eyeGuard
+      .updateSettings(patch)
+      .then(() => renderSunNote(patch.sunFollow))
+      .catch(() => {});
+  };
+
+  [enabled, city, target, win].forEach((el) => el.addEventListener('change', commit));
+  renderSunNote(sun);
+}
+
+window.addEventListener('DOMContentLoaded', () => {
+  window.eyeGuard
+    .getSettings()
+    .then((s) => bindSunFollow(s))
+    .catch(() => {});
+});

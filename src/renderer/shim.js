@@ -28,6 +28,8 @@
     proposeAction: (name) => invoke('propose_action', { name }),
     getAmbientState: () => invoke('ambient_get_state'),
     listInstalledApps: () => invoke('apps_list_installed'),
+    // 日落跟随：今日日出日落时刻
+    sunTimesToday: () => invoke('sun_times_today'),
     // 无边框窗口的自绘按钮
     windowMinimize: () => invoke('window_minimize'),
     windowHide: () => invoke('window_hide'),
