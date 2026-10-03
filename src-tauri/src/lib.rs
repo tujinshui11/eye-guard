@@ -89,6 +89,13 @@ pub fn run() {
                 }
             }
 
+            // 日落跟随：启动即对齐一次（冷启动落在夜间态时直接收敛到应处值，避免"夜间启动不生效"）
+            crate::sun_rt::check_sun_follow(
+                &handle,
+                chrono::Local::now().timestamp_millis(),
+                true,
+            );
+
             // 启动状态：亮度恢复（对照 applyStartupState 的 brightness < 100 → setBrightness 分支）
             // C 方案：走亮度控制器（背光主控 + 黑纱补充），而非旧遮罩直换
             let init_brightness = {

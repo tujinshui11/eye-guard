@@ -499,28 +499,60 @@ pub fn sun_times_today(state: State<'_, SharedState>) -> Value {
     json!({ "ok": true, "sunrise": t.sunrise_min, "sunset": t.sunset_min })
 }
 
-/// 自动定位（IP 城市级）：优先联网定位；失败时前端降级为手动选城市。
-/// 使用 ip-api.com（免费版仅 http）；只取经纬度与城市名，不存储。
+/// 自动定位（双源合取）：
+/// - 城市名：whois.pconline.com.cn（国内库，城市级准确；GBK 编码 → encoding_rs 解码）
+/// - 坐标：ip-api.com（经纬度；地级市内部日落差异 ≤2 分钟，可接受）
+/// 任一源失败时降级：城市名缺 → 用 ip-api 兜底；坐标缺 → ok:false（前端降级手动选）。
 #[tauri::command]
 pub async fn sun_autolocate() -> Value {
-    let url = "http://ip-api.com/json/?fields=status,country,city,lat,lon";
     let client = match reqwest::Client::builder()
-        .timeout(std::time::Duration::from_secs(4))
+        .timeout(std::time::Duration::from_secs(5))
         .build()
     {
         Ok(c) => c,
         Err(e) => return json!({ "ok": false, "reason": e.to_string() }),
     };
-    match client.get(url).send().await {
-        Ok(resp) => match resp.json::<Value>().await {
-            Ok(v) if v.get("status").and_then(|s| s.as_str()) == Some("success") => json!({
-                "ok": true,
-                "lat": v.get("lat"),
-                "lon": v.get("lon"),
-                "city": v.get("city")
-            }),
-            _ => json!({ "ok": false, "reason": "bad-response" }),
-        },
-        Err(e) => json!({ "ok": false, "reason": e.to_string() }),
+
+    // 源 A：国内库（城市名准确；响应为 GBK）
+    let mut city: Option<String> = None;
+    if let Ok(resp) = client
+        .get("https://whois.pconline.com.cn/ipJson.jsp?json=true")
+        .send()
+        .await
+    {
+        if let Ok(bytes) = resp.bytes().await {
+            let (text, _, _) = encoding_rs::GBK.decode(&bytes);
+            if let Ok(v) = serde_json::from_str::<Value>(&text) {
+                if let Some(c) = v.get("city").and_then(|x| x.as_str()) {
+                    if !c.is_empty() {
+                        city = Some(c.to_string());
+                    }
+                }
+            }
+        }
+    }
+
+    // 源 B：坐标（ip-api）
+    let mut lat: Option<f64> = None;
+    let mut lon: Option<f64> = None;
+    if let Ok(resp) = client
+        .get("http://ip-api.com/json/?fields=status,city,lat,lon")
+        .send()
+        .await
+    {
+        if let Ok(v) = resp.json::<Value>().await {
+            if v.get("status").and_then(|s| s.as_str()) == Some("success") {
+                lat = v.get("lat").and_then(|x| x.as_f64());
+                lon = v.get("lon").and_then(|x| x.as_f64());
+                if city.is_none() {
+                    city = v.get("city").and_then(|x| x.as_str()).map(|s| s.to_string());
+                }
+            }
+        }
+    }
+
+    match (lat, lon) {
+        (Some(lat), Some(lon)) => json!({ "ok": true, "lat": lat, "lon": lon, "city": city }),
+        _ => json!({ "ok": false, "reason": "no-coordinates", "city": city }),
     }
 }

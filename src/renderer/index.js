@@ -848,9 +848,10 @@ function renderSunNote(sun) {
         el.textContent = '日落时间暂不可用';
         return;
       }
-      // 过渡时长固定 60 分钟（f.lux 同量级；已由单测验证步长远低于可觉差）
+      const label = sun.cityLabel ? sun.cityLabel + ' · ' : '';
+      // 过渡时长固定 60 分钟（f.lux 同量级；步长远低于可觉差，已由单测断言）
       el.textContent =
-        '今日日落 ' + fmtMinutes(t.sunset) + ' · ' + fmtMinutes(t.sunset - 60) + ' 开始过渡';
+        label + '今日日落 ' + fmtMinutes(t.sunset) + ' · ' + fmtMinutes(t.sunset - 60) + ' 开始过渡';
     })
     .catch(() => {
       el.textContent = '日落时间暂不可用';
@@ -867,6 +868,11 @@ function bindSunFollow(settings) {
 
   const fillCities = () => {
     city.innerHTML = '';
+    // 首项空值：未主动选择时不落库（防"启用即隐式采用默认城市"）
+    const placeholder = document.createElement('option');
+    placeholder.value = '';
+    placeholder.textContent = '请选择城市…';
+    city.appendChild(placeholder);
     SUN_CITIES.forEach((c, i) => {
       const opt = document.createElement('option');
       opt.value = String(i);
@@ -876,7 +882,7 @@ function bindSunFollow(settings) {
   };
   fillCities();
 
-  // 坐标 → 选中项（命中预设城市则选中；否则追加"自动定位"临时项）
+  // 坐标 → 选中项（命中预设城市则选中；否则复用/更新单个"自动定位"项——避免重复累积）
   const applyCoords = (lat, lon, label) => {
     const idx = SUN_CITIES.findIndex(
       (c) => Math.abs(c.lat - lat) < 0.05 && Math.abs(c.lon - lon) < 0.05
@@ -885,23 +891,32 @@ function bindSunFollow(settings) {
       city.value = String(idx);
       return;
     }
-    const opt = document.createElement('option');
-    opt.value = 'auto';
-    opt.textContent = (label || '自动定位') + '（自动）';
+    let opt = city.querySelector('option[value="auto"]');
+    if (!opt) {
+      opt = document.createElement('option');
+      opt.value = 'auto';
+      city.appendChild(opt);
+    }
+    opt.textContent = label || '自动定位';
     opt.dataset.lat = String(lat);
     opt.dataset.lon = String(lon);
-    city.appendChild(opt);
     city.value = 'auto';
   };
 
+  // 未选择时返回 null（不落库）
   const readCoords = () => {
+    if (city.value === '') return null;
     if (city.value === 'auto') {
       const opt = city.selectedOptions[0];
-      if (!opt) return null;
-      return { lat: Number(opt.dataset.lat), lon: Number(opt.dataset.lon) };
+      if (!opt || opt.dataset.lat === undefined) return null;
+      return {
+        lat: Number(opt.dataset.lat),
+        lon: Number(opt.dataset.lon),
+        label: opt.textContent || ''
+      };
     }
     const c = SUN_CITIES[Number(city.value)];
-    return c ? { lat: c.lat, lon: c.lon } : null;
+    return c ? { lat: c.lat, lon: c.lon, label: c.name } : null;
   };
 
   if (typeof sun.lat === 'number' && typeof sun.lon === 'number') {
@@ -912,12 +927,13 @@ function bindSunFollow(settings) {
 
   const commit = () => {
     const coords = readCoords();
-    if (!coords) return;
     const patch = {
       sunFollow: {
         enabled: enabled.checked,
-        lat: coords.lat,
-        lon: coords.lon,
+        // 未选城市：保持坐标为空（不隐式落库），开启后由自动定位补齐
+        lat: coords ? coords.lat : null,
+        lon: coords ? coords.lon : null,
+        cityLabel: coords ? coords.label : sun.cityLabel || null,
         targetModeId: target.value,
         windowMinutes: 60
       }
@@ -928,8 +944,8 @@ function bindSunFollow(settings) {
       .catch(() => {});
   };
 
-  // 自动定位：优先联网（IP 城市级）；失败则提示手动选城市
-  const doLocate = (silent) => {
+  // 自动定位：城市名（国内库，准）+ 坐标；失败提示手动选
+  const doLocate = () => {
     if (locateBtn) locateBtn.disabled = true;
     window.eyeGuard
       .sunAutolocate()
@@ -937,25 +953,28 @@ function bindSunFollow(settings) {
         if (r && r.ok && typeof r.lat === 'number' && typeof r.lon === 'number') {
           applyCoords(r.lat, r.lon, r.city);
           commit();
-        } else if (!silent) {
+        } else {
           const el = $('sun-note');
           if (el) el.textContent = '自动定位失败——请手动选择城市';
         }
       })
-      .catch(() => {})
+      .catch(() => {
+        const el = $('sun-note');
+        if (el) el.textContent = '自动定位失败——请手动选择城市';
+      })
       .finally(() => {
         if (locateBtn) locateBtn.disabled = false;
       });
   };
 
   [enabled, city, target].forEach((el) => el.addEventListener('change', commit));
-  if (locateBtn) locateBtn.addEventListener('click', () => doLocate(false));
+  if (locateBtn) locateBtn.addEventListener('click', doLocate);
 
   renderSunNote(sun);
 
-  // 已启用但从未定位过 → 静默尝试一次自动定位
+  // 已启用但从未定位过 → 启动即尝试一次自动定位（成功/失败都会给出明确提示）
   if (sun.enabled && typeof sun.lat !== 'number') {
-    doLocate(false);
+    doLocate();
   }
 }
 

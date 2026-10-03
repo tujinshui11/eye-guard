@@ -86,11 +86,9 @@ fn read_config(app: &AppHandle) -> Option<(f64, f64, String, f64)> {
         .and_then(|v| v.as_str())
         .unwrap_or("evening")
         .to_string();
-    let window = sun
-        .get("windowMinutes")
-        .and_then(|v| v.as_f64())
-        .unwrap_or(60.0);
-    Some((lat, lon, target, window))
+    // 过渡窗口固定 60 分钟（与前端一致；忽略历史配置值，避免前后端口径分裂）
+    const WINDOW_MINUTES: f64 = 60.0;
+    Some((lat, lon, target, WINDOW_MINUTES))
 }
 
 /// 手动操作静默期（毫秒）：用户手动调整后此时长内不覆盖
