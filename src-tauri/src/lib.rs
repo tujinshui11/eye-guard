@@ -2,19 +2,13 @@
 //! 对照 Electron 版 src/main/index.js 的生命周期/装配职责
 
 pub mod ambient;
-pub mod appicon;
-pub mod appscan;
-pub mod appwatch;
 pub mod break_rt;
 pub mod break_timer;
-pub mod brightness;
 pub mod commands;
 pub mod display;
-pub mod gamma;
 pub mod hotkeys;
 pub mod modes;
 pub mod overlay;
-pub mod presence;
 pub mod propose;
 pub mod schedule_rt;
 pub mod scheduler;
@@ -25,6 +19,47 @@ pub mod sun;
 pub mod sun_rt;
 pub mod tray;
 pub mod usage;
+
+// ---- 平台专属模块 ----
+// 设计：业务层（display/break_rt/appwatch 的调用方）不感知平台；
+// 平台模块各自导出同名 API，`cfg` 只在这一层分叉。
+// Windows → 原生实现；其它平台 → platform/stub 下的降级实现（编译可用、功能有限）。
+
+#[cfg(windows)]
+pub mod appicon;
+#[cfg(not(windows))]
+#[path = "platform/stub/appicon.rs"]
+pub mod appicon;
+
+#[cfg(windows)]
+pub mod appscan;
+#[cfg(not(windows))]
+#[path = "platform/stub/appscan.rs"]
+pub mod appscan;
+
+#[cfg(windows)]
+pub mod appwatch;
+#[cfg(not(windows))]
+#[path = "platform/stub/appwatch.rs"]
+pub mod appwatch;
+
+#[cfg(windows)]
+pub mod brightness;
+#[cfg(not(windows))]
+#[path = "platform/stub/brightness.rs"]
+pub mod brightness;
+
+#[cfg(windows)]
+pub mod gamma;
+#[cfg(not(windows))]
+#[path = "platform/stub/gamma.rs"]
+pub mod gamma;
+
+#[cfg(windows)]
+pub mod presence;
+#[cfg(not(windows))]
+#[path = "platform/stub/presence.rs"]
+pub mod presence;
 
 /// 测试间共享的 Shell 串行锁。
 ///
