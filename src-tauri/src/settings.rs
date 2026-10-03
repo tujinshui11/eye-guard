@@ -29,8 +29,7 @@ pub fn defaults() -> Value {
             "lat": null,
             "lon": null,
             "cityLabel": null,
-            "targetModeId": "evening",
-            "windowMinutes": 60
+            "targetModeId": "evening"
         },
         "schedule": {
             "enabled": false,

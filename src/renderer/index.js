@@ -930,18 +930,27 @@ function bindSunFollow(settings) {
     const patch = {
       sunFollow: {
         enabled: enabled.checked,
-        // 未选城市：保持坐标为空（不隐式落库），开启后由自动定位补齐
+        // 未选城市：坐标保持为空（不隐式落库）
         lat: coords ? coords.lat : null,
         lon: coords ? coords.lon : null,
         cityLabel: coords ? coords.label : sun.cityLabel || null,
-        targetModeId: target.value,
-        windowMinutes: 60
+        targetModeId: target.value
+        // 过渡窗口固定 60 分钟（后端 sun_rt 常量为权威，不落盘该字段）
       }
     };
     window.eyeGuard
       .updateSettings(patch)
-      .then(() => renderSunNote(patch.sunFollow))
-      .catch(() => {});
+      .then(() => {
+        renderSunNote(patch.sunFollow);
+        // 开启但尚无坐标 → 立即尝试自动定位（运行时启用同样触发）
+        if (enabled.checked && !coords) {
+          doLocate();
+        }
+      })
+      .catch(() => {
+        const el = $('sun-note');
+        if (el) el.textContent = '设置保存失败，请重试';
+      });
   };
 
   // 自动定位：城市名（国内库，准）+ 坐标；失败提示手动选

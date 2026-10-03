@@ -1030,3 +1030,24 @@ html[data-theme="light"] .select-pop {
 .locate-btn:hover { background: var(--accent-line); }
 
 .locate-btn:disabled { opacity: 0.5; cursor: default; }
+
+/* ---- 板块切换过渡（软入：淡入 + 微位移，呼应"丝滑"基调） ---- */
+.panel.active {
+  animation: panel-in 0.18s ease-out;
+}
+
+@keyframes panel-in {
+  from {
+    opacity: 0;
+    transform: translateY(5px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* 尊重系统"减少动态效果"偏好 */
+@media (prefers-reduced-motion: reduce) {
+  .panel.active { animation: none; }
+}
