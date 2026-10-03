@@ -109,6 +109,8 @@ pub fn start_scheduler(app: AppHandle) {
             }
             let now = chrono::Local::now().timestamp_millis();
             check_schedule_once(&app, now);
+            // 日落跟随过渡检查（共用同一 tick；jumped=睡眠唤醒时走快速补过渡）
+            crate::sun_rt::check_sun_follow(&app, now, jumped);
         }
     });
     eprintln!("[schedule] tick 已启动（30s）");

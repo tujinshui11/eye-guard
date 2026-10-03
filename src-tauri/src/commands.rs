@@ -205,7 +205,15 @@ pub fn display_get_state(state: State<'_, SharedState>) -> Value {
 /// 会阻塞 UI；async 命令调度到线程池执行。
 #[tauri::command]
 pub async fn display_set_temperature(app: AppHandle, kelvin: f64) -> Value {
+    mark_manual(&app);
     set_temperature_with_app(&app, kelvin, "custom")
+}
+
+/// 标记"用户手动操作"时刻（日落跟随静默期：1 小时内不覆盖用户的手动调整）
+pub(crate) fn mark_manual(app: &AppHandle) {
+    let state = app.state::<SharedState>();
+    let mut st = state.lock().unwrap();
+    st.last_manual_at = Some(now_ms());
 }
 
 /// 对照 display:set-brightness（index.js:728）→ C 方案：背光主控 + 黑纱补充
@@ -214,6 +222,7 @@ pub async fn display_set_temperature(app: AppHandle, kelvin: f64) -> Value {
 /// 占用主线程导致界面卡顿——异步化后 WMI 调用在线程池执行。
 #[tauri::command]
 pub async fn display_set_brightness(app: AppHandle, brightness: f64) -> Value {
+    mark_manual(&app);
     let target = brightness.clamp(0.0, 100.0) as u32;
     let (outcome, alpha) = {
         let state = app.state::<SharedState>();
@@ -270,6 +279,7 @@ pub fn modes_list() -> Vec<Value> {    MODES
 /// 对照 modes:apply —— 切换模式（含 WMI 背光写入，async 避免阻塞主线程）
 #[tauri::command]
 pub async fn modes_apply(app: AppHandle, mode_id: String) -> Value {
+    mark_manual(&app);
     apply_mode_with_app(&app, &mode_id, true, false)
 }
 

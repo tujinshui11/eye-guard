@@ -39,6 +39,8 @@ pub struct AppState {
     pub brightness: BrightnessController<WmiBacklight>,
     /// 色彩敏感应用挂起标记（Some=挂起中，存应用名；仅内存，不写 settings）
     pub app_suspended: Option<String>,
+    /// 用户最近一次手动调整档位/色温/亮度的时间戳 ms（日落跟随静默期判定用；仅内存）
+    pub last_manual_at: Option<i64>,
 }
 
 pub type SharedState = Mutex<AppState>;
@@ -100,6 +102,7 @@ pub fn bootstrap() -> AppState {
         overlay_brightness: 100,
         brightness: BrightnessController::new(WmiBacklight),
         app_suspended: None,
+        last_manual_at: None,
     }
 }
 
