@@ -2,7 +2,7 @@
 
 use crate::ambient::analyzer::LumaAnalyzer;
 use crate::break_timer::BreakTimer;
-use crate::brightness::{BrightnessController, WmiBacklight};
+use crate::brightness::{new_backend, Backend, BrightnessController};
 use crate::display::{DisplayController, RealGammaIo};
 use crate::settings::SettingsStore;
 use serde_json::{json, Value};
@@ -36,7 +36,7 @@ pub struct AppState {
     pub break_timer: BreakTimer,
     pub overlay_brightness: u32,
     /// C 方案亮度控制器（背光主控 + 黑纱补充）
-    pub brightness: BrightnessController<WmiBacklight>,
+    pub brightness: BrightnessController<Backend>,
     /// 色彩敏感应用挂起标记（Some=挂起中，存应用名；仅内存，不写 settings）
     pub app_suspended: Option<String>,
     /// 用户最近一次手动调整档位/色温/亮度的时间戳 ms（日落跟随静默期判定用；仅内存）
@@ -102,7 +102,7 @@ pub fn bootstrap() -> AppState {
         ambient: AmbientRuntime::default(),
         break_timer: BreakTimer::new(),
         overlay_brightness: 100,
-        brightness: BrightnessController::new(WmiBacklight),
+        brightness: BrightnessController::new(new_backend()),
         app_suspended: None,
         last_manual_at: None,
         usage: crate::usage::UsageStats::load(&dir),

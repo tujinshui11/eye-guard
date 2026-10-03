@@ -25,6 +25,14 @@ impl BacklightIo for StubBacklight {
     }
 }
 
+/// 平台后端类型别名——与 Windows 版同名，业务层（state.rs）只依赖 `Backend`
+pub type Backend = StubBacklight;
+
+/// 构造平台后端实例（占位：读写均不可用的 stub）
+pub fn new_backend() -> Backend {
+    StubBacklight
+}
+
 /// 亮度结果（与 Windows 版字段一致；此处只可能走 MaskOnly）
 #[derive(Debug, Clone, Copy, PartialEq, Serialize)]
 #[serde(tag = "kind", rename_all = "camelCase")]
@@ -48,24 +56,22 @@ pub struct BrightnessController<I: BacklightIo = StubBacklight> {
     initial: Option<u32>,
 }
 
-impl BrightnessController<StubBacklight> {
-    pub fn new() -> Self {
-        Self {
-            io: StubBacklight,
-            available: false,
-            initial: None,
-        }
+impl BrightnessController<Backend> {
+    /// 便捷构造（Windows 版对应 `new(WmiBacklight)`）
+    pub fn with_stub_backend() -> Self {
+        Self::new(StubBacklight)
     }
 }
 
-impl Default for BrightnessController<StubBacklight> {
+impl Default for BrightnessController<Backend> {
     fn default() -> Self {
-        Self::new()
+        Self::with_stub_backend()
     }
 }
 
 impl<I: BacklightIo> BrightnessController<I> {
-    pub fn with_io(io: I) -> Self {
+    /// 与 Windows 版签名一致：new(io)
+    pub fn new(io: I) -> Self {
         Self {
             io,
             available: false,
@@ -142,7 +148,7 @@ mod tests {
 
     #[test]
     fn stub_controller_degrades_to_mask_only() {
-        let mut c = BrightnessController::new();
+        let mut c = BrightnessController::new(StubBacklight);
         assert!(!c.is_available(), "占位实现应报告背光不可用");
         let (outcome, alpha) = c.apply(50);
         assert!(matches!(outcome, BrightnessOutcome::MaskOnly { .. }));

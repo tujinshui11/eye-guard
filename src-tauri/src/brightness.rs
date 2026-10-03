@@ -184,6 +184,14 @@ impl<I: BacklightIo> BrightnessController<I> {
 /// 生产 IO：WMI `WmiMonitorBrightness` / `WmiMonitorBrightnessMethods`
 pub struct WmiBacklight;
 
+/// 平台后端类型别名——业务层（state.rs）只依赖 `Backend`，不感知平台实现
+pub type Backend = WmiBacklight;
+
+/// 构造平台后端实例（Windows：WMI 背光）
+pub fn new_backend() -> Backend {
+    WmiBacklight
+}
+
 impl BacklightIo for WmiBacklight {
     fn get(&self) -> Option<u32> {
         wmi::read_brightness()
