@@ -747,3 +747,64 @@ $('win-min').addEventListener('click', () => {
 $('win-close').addEventListener('click', () => {
   window.eyeGuard.windowHide().catch(() => {});
 });
+
+// ---- 自绘下拉弹层（替代原生 select 弹层，风格与整体统一）----
+// 策略：保留原生 <select>（表单语义 / 既有 change 监听 / 键盘无障碍不变），
+// 鼠标 mousedown 时拦截原生弹层、渲染自绘弹层；选择后写回 value 并派发 change。
+
+let selectPopEl = null;
+
+function closeSelectPop() {
+  if (selectPopEl) {
+    selectPopEl.remove();
+    selectPopEl = null;
+  }
+}
+
+document.addEventListener('mousedown', (e) => {
+  const sel = e.target && e.target.closest ? e.target.closest('select') : null;
+  if (!sel) {
+    closeSelectPop();
+    return;
+  }
+  e.preventDefault(); // 阻止原生弹层
+  closeSelectPop();
+
+  const pop = document.createElement('div');
+  pop.className = 'select-pop';
+  Array.from(sel.options).forEach((opt, i) => {
+    const row = document.createElement('div');
+    row.className = 'opt' + (i === sel.selectedIndex ? ' sel' : '');
+    row.textContent = opt.textContent;
+    row.addEventListener('mousedown', (ev) => {
+      ev.preventDefault();
+      ev.stopPropagation();
+      sel.value = opt.value;
+      sel.dispatchEvent(new Event('change', { bubbles: true }));
+      closeSelectPop();
+    });
+    pop.appendChild(row);
+  });
+  document.body.appendChild(pop);
+
+  const rect = sel.getBoundingClientRect();
+  pop.style.minWidth = Math.max(rect.width, 120) + 'px';
+  pop.style.left = rect.left + 'px';
+  const below = rect.bottom + 4;
+  if (below + pop.offsetHeight > window.innerHeight - 8) {
+    pop.style.top = Math.max(8, rect.top - pop.offsetHeight - 4) + 'px';
+  } else {
+    pop.style.top = below + 'px';
+  }
+  selectPopEl = pop;
+});
+
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape') closeSelectPop();
+});
+
+// 滚动 / 切板块时关闭，避免错位残留
+document.addEventListener('wheel', closeSelectPop, { passive: true });
+document.querySelectorAll('.nav-item').forEach((btn) => {
+  btn.addEventListener('click', closeSelectPop);
+});
