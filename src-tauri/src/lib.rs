@@ -21,6 +21,7 @@ pub mod scheduler;
 pub mod settings;
 pub mod state;
 pub mod temperature;
+pub mod sun;
 pub mod tray;
 
 /// 测试间共享的 Shell 串行锁。
