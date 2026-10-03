@@ -124,6 +124,7 @@ body {
 /* ---- 窗口外壳（圆角 + 磨砂玻璃；真机由 Acrylic 透出桌面） ---- */
 
 .window {
+  position: relative;
   display: grid;
   grid-template-columns: 208px 1fr;
   height: 100%;
@@ -929,3 +930,30 @@ html[data-theme="anime"] .mascot img {
    全窗拖拽由 .window 上的 data-tauri-drag-region="deep" 承担
    （Tauri 语义：deep = 子树任意位置可拖；BUTTON/INPUT/LABEL 等
    可点击元素与交互控件自动豁免，无需额外 pointer-events 规则）。 */
+
+/* ---- 窗口控制按钮（右上角悬浮） ---- */
+.win-btns {
+  position: absolute;
+  top: 10px;
+  right: 12px;
+  z-index: 20;
+  display: flex;
+  gap: 4px;
+}
+
+/* 板块标题右侧为窗口按钮让位，避免重叠 */
+.panel-head { padding-right: 84px; }
+
+/* ---- 原生下拉弹层配色（深色，避免白底浅字看不清） ---- */
+select { color-scheme: dark; }
+.field select option,
+.schedule-row select option {
+  background-color: #2A2530;
+  color: #F2EDE8;
+}
+html[data-theme="light"] select { color-scheme: light; }
+html[data-theme="light"] .field select option,
+html[data-theme="light"] .schedule-row select option {
+  background-color: #FFFFFF;
+  color: #241D18;
+}

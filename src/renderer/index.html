@@ -8,6 +8,10 @@
 </head>
 <body class="app-shell">
   <div class="window" data-tauri-drag-region="deep">
+    <div class="win-btns">
+      <button id="win-min" class="win-btn" title="最小化">—</button>
+      <button id="win-close" class="win-btn" title="最小化到托盘">✕</button>
+    </div>
     <aside class="nav">
       <div class="nav-brand">
         <img class="nav-logo" src="icon.png" alt="" draggable="false" />
@@ -24,10 +28,6 @@
       </nav>
       <div class="nav-foot">
         <span id="status" class="status">已启用</span>
-        <div class="win-btns">
-          <button id="win-min" class="win-btn" title="最小化">—</button>
-          <button id="win-close" class="win-btn" title="最小化到托盘">✕</button>
-        </div>
       </div>
     </aside>
 
